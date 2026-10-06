@@ -1,0 +1,9 @@
+{
+  "name": "Shaunz Royale",
+  "short_name": "Shaunz Royale",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#070707",
+  "theme_color": "#070707",
+  "icons": [{ "src": "assets/logo.png", "sizes": "772x772", "type": "image/png", "purpose": "any" }]
+}
