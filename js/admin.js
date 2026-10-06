@@ -28,7 +28,7 @@
   };
   const can = (a) => ({ override: ['owner', 'manager'], noshow: ['owner', 'manager'], editEvents: ['owner', 'manager'], settings: ['owner'], tables: ['owner', 'manager'], confirm: ['owner', 'manager', 'reservation'], seeContacts: ['owner', 'manager', 'reservation'] }[a] || []).includes(role);
 
-  let role = null; try { role = sessionStorage.getItem('sr_role'); } catch (e) { }
+  let role = null, userEmail = '';
   const actor = () => (ROLES[role] ? ROLES[role][0] : 'Staff');
   const ui = { date: todayISO(), q: '', status: '', rdate: '', evCat: '', from: '', to: '' };
 
@@ -57,11 +57,47 @@
   function waMsgLink(r, text) { return 'https://wa.me/' + SR.normPhone(r.phone) + '?text=' + encodeURIComponent(text); }
 
   /* ---------- login ---------- */
-  function loginView() {
-    root.innerHTML = '<div class="login"><div class="panel"><img src="assets/logo.png" alt="Shaunz Royale"><h1 style="font-size:1.6rem">Staff Dashboard</h1><p class="muted">Choose a role to preview what each team member sees.</p>' +
-      '<div class="notice" style="text-align:left;font-size:.85rem"><b>Demo access.</b> This preview stores data in this browser only and has no passwords. A production build needs secure staff accounts and server-side permissions.</div>' +
-      '<div class="roles">' + Object.keys(ROLES).map((k) => '<button data-role="' + k + '"><b>' + ROLES[k][0] + '</b><span>' + ROLES[k][1] + '</span></button>').join('') + '</div><a href="index.html">← Back to website</a></div></div>';
-    $$('[data-role]').forEach((b) => b.addEventListener('click', () => { role = b.dataset.role; try { sessionStorage.setItem('sr_role', role); } catch (e) { } SR.audit(actor(), 'Signed in (demo)', ''); location.hash = '#/' + PERMS[role][0]; render(); }));
+  function loginView(msg) {
+    root.innerHTML = '<div class="login"><div class="panel"><img src="assets/logo.png" alt="Shaunz Royale"><h1 style="font-size:1.6rem">Staff Dashboard</h1><p class="muted">Sign in with your staff account.</p>' +
+      (msg ? '<div class="notice bad" role="alert" style="text-align:left">' + esc(msg) + '</div>' : '') +
+      '<form class="form" id="lf" style="text-align:left;margin:18px 0" novalidate>' + fld('l_email', 'Email', '<input type="email" id="l_email" autocomplete="username" inputmode="email">') + fld('l_pass', 'Password', '<input type="password" id="l_pass" autocomplete="current-password">') +
+      '<button class="btn primary block" type="submit" id="l_btn">Sign in</button></form><a href="index.html">← Back to website</a></div></div>';
+    $('#lf').onsubmit = async (e) => {
+      e.preventDefault(); const b = $('#l_btn'); b.disabled = true; b.textContent = 'Signing in…';
+      const { error } = await SR.sb.auth.signInWithPassword({ email: $('#l_email').value.trim(), password: $('#l_pass').value });
+      if (error) { loginView('Incorrect email or password.'); return; }
+      boot();
+    };
+  }
+  async function boot() {
+    root.innerHTML = '<div class="login"><p class="muted">Loading…</p></div>';
+    const { data: s } = await SR.sb.auth.getSession();
+    if (!s.session) { loginView(); return; }
+    userEmail = s.session.user.email;
+    const r = await SR.sb.rpc('my_role');
+    if (r.error || !r.data) { await SR.sb.auth.signOut(); loginView('This account isn’t registered as staff. Ask the owner to add your email.'); return; }
+    role = r.data;
+    try { await SR.loadAll(); } catch (e) { loginView('Could not load data: ' + e.message); return; }
+    SR.onError.fn = (e) => toast('Couldn’t save to the server: ' + (e.message || e) + '. Refresh and try again.');
+    if (!live) { live = true; startLive(); }
+    if (!location.hash || !PERMS[role].includes(location.hash.replace(/^#\/?/, '').split('/')[0])) location.hash = '#/' + PERMS[role][0];
+    render();
+  }
+  let live = false, refreshTimer = null;
+  function beep() { try { const c = new (window.AudioContext || window.webkitAudioContext)(), o = c.createOscillator(), g = c.createGain(); o.frequency.value = 880; g.gain.value = .08; o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime + .18); } catch (e) { } }
+  function startLive() {
+    SR.subscribe((table, p) => {
+      if (p.eventType === 'INSERT' && p.new && p.new.data && (p.new.data.source === 'website' || table === 'enquiries')) {
+        toast('🔔 New ' + (table === 'enquiries' ? 'celebration enquiry' : 'booking') + ' from ' + (p.new.data.name || 'a guest')); beep();
+        document.title = '(•) New booking · Staff Dashboard'; setTimeout(() => { document.title = 'Staff Dashboard · Shaunz Royale'; }, 15000);
+      }
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(async () => {
+        try { await SR.refresh(); } catch (e) { return; }
+        const a = document.activeElement;
+        if (!dlg.open && !(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) rerender();
+      }, 500);
+    });
   }
 
   /* ---------- shell ---------- */
@@ -75,11 +111,10 @@
     if (SECTIONS.find((x) => x[0] === sec) && !PERMS[role].includes(sec)) { SR.audit(actor(), 'Access denied', 'Tried to open ' + sec); toast('Your role can’t open that section.'); sec = PERMS[role][0]; location.hash = '#/' + sec; }
     if (!SECTIONS.find((x) => x[0] === sec)) sec = PERMS[role][0];
     const bc = badgeCounts();
-    root.innerHTML = (D().sample ? '<div class="demo-bar">Sample events and tables are loaded. Review and edit them in Events and Tables (or clear them in Settings).</div>' : '') +
-      '<div class="app"><aside class="side" id="side"><a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="44" height="44"><span>SHAUNZ<br>ROYALE</span></a><nav aria-label="Dashboard">' +
+    root.innerHTML = '<div class="app"><aside class="side" id="side"><a class="brand" href="index.html"><img src="assets/logo.png" alt="" width="44" height="44"><span>SHAUNZ<br>ROYALE</span></a><nav aria-label="Dashboard">' +
       SECTIONS.filter((s) => PERMS[role].includes(s[0])).map((s) => '<a href="#/' + s[0] + '"' + (s[0] === sec ? ' aria-current="page"' : '') + '><span aria-hidden="true">' + s[2] + '</span>' + s[1] + (bc[s[0]] ? '<span class="n">' + bc[s[0]] + '</span>' : '') + '</a>').join('') +
-      '</nav><div class="who">Signed in as<br><b style="color:var(--gold-light)">' + ROLES[role][0] + '</b><br><button class="btn small" style="margin-top:10px" id="logout">Switch role</button></div></aside><main class="main" id="main" tabindex="-1"></main></div>';
-    $('#logout').addEventListener('click', () => { try { sessionStorage.removeItem('sr_role'); } catch (e) { } role = null; render(); });
+      '</nav><div class="who">Signed in as<br><b style="color:var(--gold-light)">' + ROLES[role][0] + '</b><br><span style="word-break:break-all">' + esc(userEmail) + '</span><br><button class="btn small" style="margin-top:10px" id="logout">Sign out</button></div></aside><main class="main" id="main" tabindex="-1"></main></div>';
+    $('#logout').addEventListener('click', async () => { await SR.sb.auth.signOut(); role = null; loginView(); });
     const m = $('#main'); m.innerHTML = '<div class="topbar"><div style="display:flex;gap:10px;align-items:center"><button class="btn small mnav-btn" id="mnav" aria-label="Open menu">☰ Menu</button><h1>' + SECTIONS.find((s) => s[0] === sec)[1] + '</h1></div><span class="muted">' + fmtDate(todayISO()) + ' · Africa/Lagos</span></div><div id="view"></div>';
     $('#mnav').addEventListener('click', () => $('#side').classList.toggle('open'));
     $('#side').addEventListener('click', (e) => { if (e.target.closest('a')) $('#side').classList.remove('open'); });
@@ -147,7 +182,7 @@
     const draw = () => {
       const rs = filteredRes();
       $('#rl').innerHTML = rs.length ? '<div class="tbl-wrap"><table><thead><tr><th>Ref</th><th>Guest</th><th>When</th><th>Party</th><th>Type / Event</th><th>Invited by</th><th>Status</th><th>Actions</th></tr></thead><tbody>' +
-        rs.map((r) => { const ev = r.eventId && SR.eventById(r.eventId); return '<tr><td><b>' + r.ref + '</b></td><td>' + esc(r.name) + '<div class="sub">' + phoneShow(r.phone) + '</div></td><td>' + fmtDate(r.date, { year: undefined }) + '<div class="sub">' + fmtTime(r.time) + '</div></td><td>' + r.guests + (r.arrived ? '<div class="sub">' + r.arrived + ' arrived</div>' : '') + '</td><td>' + esc(r.type) + '<div class="sub">' + esc(evName(r.eventId)) + (ev && ev.cancelled ? ' ⚠ cancelled' : '') + '</div></td><td>' + esc(r.invitedBy || '—') + '<div class="sub">' + esc(r.channel || '') + '</div></td><td>' + badge(r.status) + '</td><td><div class="actions">' +
+        rs.map((r) => { const ev = r.eventId && SR.eventById(r.eventId); return '<tr><td><b>' + r.ref + '</b></td><td>' + esc(r.name) + '<div class="sub">' + phoneShow(r.phone) + '</div>' + (can('seeContacts') && r.email ? '<div class="sub">' + esc(r.email) + '</div>' : '') + '</td><td>' + fmtDate(r.date, { year: undefined }) + '<div class="sub">' + fmtTime(r.time) + '</div></td><td>' + r.guests + (r.arrived ? '<div class="sub">' + r.arrived + ' arrived</div>' : '') + '</td><td>' + esc(r.type) + '<div class="sub">' + esc(evName(r.eventId)) + (ev && ev.cancelled ? ' ⚠ cancelled' : '') + '</div></td><td>' + esc(r.invitedBy || '—') + '<div class="sub">' + esc(r.channel || '') + '</div></td><td>' + badge(r.status) + '</td><td><div class="actions">' +
           (can('confirm') && ['pending', 'waitlisted'].includes(r.status) ? '<button class="btn small primary" data-act="confirm" data-id="' + r.id + '">Confirm</button>' : '') + '<button class="btn small" data-act="open" data-id="' + r.id + '">Open</button></div></td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="empty">No reservations match. Bookings from the website appear here.</div>';
     };
     draw();
@@ -162,12 +197,12 @@
     const nsOK = noShowEligible(r);
     const msgs = { confirmed: 'Hello ' + r.name + ', your reservation at Shaunz Royale is confirmed. Ref ' + r.ref + ' · ' + fmtDate(r.date) + ' · ' + fmtTime(r.time) + ' · ' + r.guests + ' guests. See you there!', rejected: 'Hello ' + r.name + ', unfortunately we could not accept your request (' + r.ref + '). Please contact us for alternatives.', waitlisted: 'Hello ' + r.name + ', you are on the waitlist for ' + fmtDate(r.date) + ' (' + r.ref + '). We will contact you if a spot opens.', cancelled: 'Hello ' + r.name + ', your reservation ' + r.ref + ' has been cancelled.' };
     const msg = msgs[r.status] || 'Hello ' + r.name + ', this is Shaunz Royale about your booking ' + r.ref + '.';
-    openDlg(r.ref + ' · ' + r.name, '<p>' + badge(r.status) + '</p><dl class="summary"><div><dt>Date &amp; time</dt><dd>' + fmtDate(r.date) + ', ' + fmtTime(r.time) + '</dd></div><div><dt>Party</dt><dd>' + r.guests + (r.arrived ? ' (' + r.arrived + ' arrived)' : '') + '</dd></div><div><dt>Phone</dt><dd>' + phoneShow(r.phone) + '</dd></div><div><dt>Event</dt><dd>' + esc(evName(r.eventId)) + '</dd></div><div><dt>Type</dt><dd>' + esc(r.type) + (r.seating ? ' · ' + esc(r.seating) : '') + '</dd></div><div><dt>Invited by</dt><dd>' + esc(r.invitedBy || '—') + ' · ' + esc(r.channel || '—') + '</dd></div><div><dt>Requests</dt><dd>' + esc(r.requests || '—') + '</dd></div><div><dt>Marketing consent</dt><dd>' + (r.marketing ? 'Yes' : 'No') + '</dd></div></dl>' +
+    openDlg(r.ref + ' · ' + r.name, '<p>' + badge(r.status) + '</p><dl class="summary"><div><dt>Date &amp; time</dt><dd>' + fmtDate(r.date) + ', ' + fmtTime(r.time) + '</dd></div><div><dt>Party</dt><dd>' + r.guests + (r.arrived ? ' (' + r.arrived + ' arrived)' : '') + '</dd></div><div><dt>Phone</dt><dd>' + phoneShow(r.phone) + '</dd></div><div><dt>Email</dt><dd>' + (can('seeContacts') ? esc(r.email || '—') : '—') + '</dd></div><div><dt>Event</dt><dd>' + esc(evName(r.eventId)) + '</dd></div><div><dt>Type</dt><dd>' + esc(r.type) + (r.seating ? ' · ' + esc(r.seating) : '') + '</dd></div><div><dt>Invited by</dt><dd>' + esc(r.invitedBy || '—') + ' · ' + esc(r.channel || '—') + '</dd></div><div><dt>Requests</dt><dd>' + esc(r.requests || '—') + '</dd></div><div><dt>Marketing consent</dt><dd>' + (r.marketing ? 'Yes' : 'No') + '</dd></div></dl>' +
       (can('confirm') ? '<h3 style="margin-top:20px">Update status</h3><div class="actions" id="stAct">' +
         ['confirmed', 'waitlisted', 'rejected', 'cancelled'].filter((s) => s !== r.status).map((s) => '<button class="btn small' + (s === 'confirmed' ? ' primary' : s === 'rejected' || s === 'cancelled' ? ' danger' : '') + '" data-s="' + s + '">' + SR.STATUS[s][0] + '</button>').join('') +
         (can('noshow') ? '<button class="btn small danger" data-s="no_show"' + (nsOK ? '' : ' disabled title="Available after the arrival grace period"') + '>No-show</button>' : '') + (['checked_in'].includes(r.status) ? '<button class="btn small" data-s="completed">Mark completed</button>' : '') + '</div>' : '') +
       (can('confirm') || can('tables') ? '<h3 style="margin-top:20px">Table assignment</h3>' + (canTable ? '<div class="actions" id="tbSel">' + tbls.map((t) => '<label class="check" style="border:1px solid var(--line);border-radius:10px;padding:8px 12px"><input type="checkbox" value="' + t.id + '"' + ((r.tableIds || []).includes(t.id) ? ' checked' : '') + '><span>' + esc(t.name) + ' <span class="muted">(' + t.seats + ')</span></span></label>').join('') + '</div><div class="err" id="tbErr" style="display:block"></div><button class="btn small" id="tbSave" style="margin-top:10px">Save assignment</button>' : '<p class="muted">General visits don’t include a table. Only table reservations and celebrations can be assigned one.</p>') : '') +
-      '<h3 style="margin-top:20px">Notes</h3><textarea id="rn" aria-label="Staff notes">' + esc(r.notes || '') + '</textarea><div class="actions" style="margin-top:10px"><button class="btn small" id="rnSave">Save notes</button>' + (can('seeContacts') ? '<a class="btn small" target="_blank" rel="noopener" href="' + waMsgLink(r, msg) + '" id="wa">Message guest on WhatsApp</a>' : '') + '</div>' +
+      '<h3 style="margin-top:20px">Notes</h3><textarea id="rn" aria-label="Staff notes">' + esc(r.notes || '') + '</textarea><div class="actions" style="margin-top:10px"><button class="btn small" id="rnSave">Save notes</button>' + (can('seeContacts') ? '<a class="btn small" target="_blank" rel="noopener" href="' + waMsgLink(r, msg) + '" id="wa">Message guest on WhatsApp</a>' + (r.email ? '<a class="btn small" href="mailto:' + esc(r.email) + '?subject=' + encodeURIComponent('Your Shaunz Royale booking ' + r.ref) + '">Email guest</a>' : '') : '') + '</div>' +
       (r.checkIns && r.checkIns.length ? '<h3 style="margin-top:20px">Check-ins</h3><ul class="list">' + r.checkIns.map((c) => '<li><span>' + c.count + ' guest(s)</span><span class="muted">' + SR.fmtStamp(c.at) + ' · ' + esc(c.by) + '</span></li>').join('') + '</ul>' : ''));
     $$('#stAct [data-s]').forEach((b) => b.onclick = () => { if (setStatus(r, b.dataset.s)) { closeDlg(); rerender(); toast('Status updated'); } });
     const tb = $('#tbSave'); if (tb) tb.onclick = () => {
@@ -181,12 +216,12 @@
 
   function addBookingDlg() {
     const evs = SR.get().events.filter((e) => e.published && !e.cancelled && e.date >= todayISO());
-    openDlg('Add booking', '<form class="form" id="ab" novalidate><div class="row">' + fld('ab_name', 'Full name', '<input type="text" id="ab_name">') + fld('ab_phone', 'Phone', '<input type="tel" id="ab_phone">') + '</div><div class="row">' + fld('ab_type', 'Type', '<select id="ab_type"><option value="visit">Visit</option><option value="table">Table</option></select>') + fld('ab_event', 'Event', '<select id="ab_event"><option value="">General visit</option>' + evs.map((e) => '<option value="' + e.id + '">' + esc(e.title) + ' — ' + fmtDate(e.date, { year: undefined }) + '</option>').join('') + '</select>') + '</div><div class="row">' + fld('ab_date', 'Date', '<input type="date" id="ab_date" value="' + todayISO() + '">') + fld('ab_time', 'Arrival', '<input type="time" id="ab_time">') + fld('ab_guests', 'Guests', '<input type="number" id="ab_guests" min="1" value="2">') + '</div><div class="row">' + fld('ab_inv', 'Invited by', '<input type="text" id="ab_inv">') + fld('ab_ch', 'Source', '<select id="ab_ch">' + SR.CHANNELS.map((c) => '<option>' + c + '</option>').join('') + '</select>') + '</div><div class="err" id="ab_err" style="display:block"></div><button class="btn primary" type="submit">Create booking</button></form>');
+    openDlg('Add booking', '<form class="form" id="ab" novalidate><div class="row">' + fld('ab_name', 'Full name', '<input type="text" id="ab_name">') + fld('ab_phone', 'Phone', '<input type="tel" id="ab_phone">') + fld('ab_email', 'Email (optional)', '<input type="email" id="ab_email">') + '</div><div class="row">' + fld('ab_type', 'Type', '<select id="ab_type"><option value="visit">Visit</option><option value="table">Table</option></select>') + fld('ab_event', 'Event', '<select id="ab_event"><option value="">General visit</option>' + evs.map((e) => '<option value="' + e.id + '">' + esc(e.title) + ' — ' + fmtDate(e.date, { year: undefined }) + '</option>').join('') + '</select>') + '</div><div class="row">' + fld('ab_date', 'Date', '<input type="date" id="ab_date" value="' + todayISO() + '">') + fld('ab_time', 'Arrival', '<input type="time" id="ab_time">') + fld('ab_guests', 'Guests', '<input type="number" id="ab_guests" min="1" value="2">') + '</div><div class="row">' + fld('ab_inv', 'Invited by', '<input type="text" id="ab_inv">') + fld('ab_ch', 'Source', '<select id="ab_ch">' + SR.CHANNELS.map((c) => '<option>' + c + '</option>').join('') + '</select>') + '</div><div class="err" id="ab_err" style="display:block"></div><button class="btn primary" type="submit">Create booking</button></form>');
     $('#ab_event').onchange = (e) => { const ev = e.target.value && SR.eventById(e.target.value); if (ev) $('#ab_date').value = ev.date; };
     $('#ab').onsubmit = (e) => {
       e.preventDefault(); const g = (i) => $('#' + i).value.trim(), err = $('#ab_err');
       if (g('ab_name').length < 2 || !SR.validPhone(g('ab_phone')) || !g('ab_date') || !g('ab_time') || !(+g('ab_guests') > 0)) { err.textContent = 'Please complete name, a valid phone, date, arrival time and guests.'; return; }
-      const r = { id: SR.uid('rs'), ref: SR.ref('SR'), type: g('ab_type'), eventId: g('ab_event'), date: g('ab_date'), time: g('ab_time'), guests: +g('ab_guests'), name: g('ab_name'), phone: g('ab_phone'), invitedBy: g('ab_inv'), channel: g('ab_ch'), seating: '', requests: '', marketing: false, status: 'pending', tableIds: [], arrived: 0, checkIns: [], notes: '', createdAt: SR.nowStamp(), source: 'staff' };
+      const r = { id: SR.uid('rs'), ref: SR.ref('SR'), type: g('ab_type'), eventId: g('ab_event'), date: g('ab_date'), time: g('ab_time'), guests: +g('ab_guests'), name: g('ab_name'), phone: g('ab_phone'), email: g('ab_email').toLowerCase(), invitedBy: g('ab_inv'), channel: g('ab_ch'), seating: '', requests: '', marketing: false, status: 'pending', tableIds: [], arrived: 0, checkIns: [], notes: '', createdAt: SR.nowStamp(), source: 'staff' };
       D().reservations.push(r); SR.save(); SR.audit(actor(), 'Booking created (staff)', r.ref);
       if (can('confirm') && !setStatus(r, 'confirmed')) { rerender(); return; }
       closeDlg(); rerender(); toast('Booking ' + r.ref + ' created');
@@ -333,17 +368,28 @@
     const s = D().settings, ed = can('settings');
     const inp = (id, label, v, type, hint) => fld('s_' + id, label, '<input type="' + (type || 'text') + '" id="s_' + id + '" value="' + esc(v) + '"' + (ed ? '' : ' disabled') + '>', hint);
     el.innerHTML = '<div class="two"><div class="card"><h3>Business information</h3><form class="form" id="sf">' + inp('address', 'Address', s.address) + inp('phone', 'Phone', s.phone, 'tel') + inp('whatsapp', 'WhatsApp number', s.whatsapp, 'tel', 'Used for “Send on WhatsApp” buttons. Include the country code.') + inp('email', 'Email', s.email, 'email') + inp('instagram', 'Instagram link', s.instagram, 'url', 'Full URL, e.g. https://instagram.com/…') + inp('hours', 'Opening hours (shown on site)', s.hours, 'text', 'Leave blank until confirmed.') +
+      '<h3 style="margin-top:12px">New-booking alerts</h3>' + inp('alertEmail', 'Alert email', s.alertEmail, 'email', 'Gets an email the moment a guest books or enquires.') + inp('alertWhatsapp', 'Alert WhatsApp number', s.alertWhatsapp, 'tel', 'Automatic WhatsApp alerts also need the CallMeBot key to be set up.') +
       '<h3 style="margin-top:12px">Booking rules</h3><div class="row">' + inp('graceMinutes', 'No-show grace (mins)', s.graceMinutes, 'number') + inp('tableDurationMins', 'Table duration (mins)', s.tableDurationMins, 'number') + inp('turnoverBufferMins', 'Turnover buffer (mins)', s.turnoverBufferMins, 'number') + '</div>' + (ed ? '<button class="btn primary" type="submit">Save settings</button>' : '<p class="muted">Only the Owner can change settings.</p>') + '</form></div>' +
-      '<div class="card"><h3>Staff roles</h3><ul class="list">' + Object.keys(ROLES).map((k) => '<li><span><b>' + ROLES[k][0] + '</b><br><span class="muted">' + ROLES[k][1] + '</span></span></li>').join('') + '</ul>' + (ed ? '<h3 style="margin-top:18px">Data</h3><div class="actions"><button class="btn small" data-act="backup">Download backup</button><button class="btn small" data-act="demo">Load demo bookings</button><button class="btn small danger" data-act="fresh">Clear sample data</button><button class="btn small danger" data-act="reset">Reset to sample</button></div>' : '') + '</div></div>' +
+      '<div class="card"><h3>Staff roles</h3><ul class="list">' + Object.keys(ROLES).map((k) => '<li><span><b>' + ROLES[k][0] + '</b><br><span class="muted">' + ROLES[k][1] + '</span></span></li>').join('') + '</ul>' + (ed ? '<h3 style="margin-top:18px">Data</h3><div class="actions"><button class="btn small" data-act="backup">Download backup</button></div>' : '') + '</div></div>' +
       '<div class="card" style="margin-top:18px"><h3>Audit log</h3>' + (D().audit.length ? '<div class="tbl-wrap" style="max-height:360px;overflow:auto;border:0"><table><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Detail</th></tr></thead><tbody>' + D().audit.slice(0, 100).map((a) => '<tr><td>' + SR.fmtStamp(a.at) + '</td><td>' + esc(a.actor) + '</td><td>' + esc(a.action) + '</td><td>' + esc(a.detail) + '</td></tr>').join('') + '</tbody></table></div>' : '<p class="muted">Nothing recorded yet.</p>') + '</div>';
-    if (ed) $('#sf').onsubmit = (e) => { e.preventDefault(); ['address', 'phone', 'whatsapp', 'email', 'instagram', 'hours'].forEach((k) => s[k] = $('#s_' + k).value.trim()); ['graceMinutes', 'tableDurationMins', 'turnoverBufferMins'].forEach((k) => s[k] = Math.max(0, +$('#s_' + k).value || 0)); SR.save(); SR.audit(actor(), 'Settings changed', ''); toast('Settings saved'); };
+    if (ed) staffCard(el);
+    if (ed) $('#sf').onsubmit = (e) => { e.preventDefault(); ['address', 'phone', 'whatsapp', 'email', 'instagram', 'hours', 'alertEmail', 'alertWhatsapp'].forEach((k) => s[k] = $('#s_' + k).value.trim()); ['graceMinutes', 'tableDurationMins', 'turnoverBufferMins'].forEach((k) => s[k] = Math.max(0, +$('#s_' + k).value || 0)); SR.save(); SR.audit(actor(), 'Settings changed', ''); toast('Settings saved'); };
     bindCommon(el);
   };
 
-  function loadDemo() {
-    const d = D(), t = todayISO(), evs = d.events.filter((e) => e.date >= t).slice(0, 2), names = ['Tola A.', 'Chidi O.', 'Amaka N.', 'Seun B.', 'Kemi R.', 'Ibrahim S.', 'Funke L.', 'David E.'];
-    names.forEach((n, i) => { const ev = evs[i % 2] || null; d.reservations.push({ id: SR.uid('rs'), ref: SR.ref('SR'), type: i % 3 === 0 ? 'table' : 'visit', eventId: ev ? ev.id : '', date: ev ? ev.date : t, time: ['21:00', '22:00', '23:00'][i % 3], guests: 2 + (i % 5), name: 'Demo ' + n, phone: '0803000' + String(1000 + i), invitedBy: i % 2 ? 'Demo host' : '', channel: SR.CHANNELS[i % 4], seating: '', requests: '', marketing: i % 2 === 0, status: ['pending', 'confirmed', 'confirmed', 'waitlisted'][i % 4], tableIds: [], arrived: 0, checkIns: [], notes: '', createdAt: SR.nowStamp(), source: 'website' }); });
-    SR.save(); SR.audit(actor(), 'Demo bookings loaded', '');
+  /* ---- staff accounts (owner only) ---- */
+  async function staffCard(el) {
+    const card = document.createElement('div'); card.className = 'card'; card.style.marginTop = '18px'; card.innerHTML = '<h3>Staff accounts</h3><p class="muted">Loading…</p>'; el.appendChild(card);
+    const draw = async () => {
+      const { data, error } = await SR.sb.from('staff_users').select('*').order('created_at');
+      if (error) { card.innerHTML = '<h3>Staff accounts</h3><p class="muted">Couldn’t load staff.</p>'; return; }
+      card.innerHTML = '<h3>Staff accounts</h3><p class="muted">Add someone’s email and role here, then create their login in Supabase → Authentication → Users (or ask them to use “Reset password” after you add them). Only emails listed here can open the dashboard.</p><ul class="list">' +
+        data.map((u) => '<li><span><b>' + esc(u.email) + '</b><br><span class="muted">' + esc(ROLES[u.role] ? ROLES[u.role][0] : u.role) + '</span></span>' + (u.email.toLowerCase() === userEmail.toLowerCase() ? '<span class="muted">you</span>' : '<button class="btn small danger" data-rm="' + esc(u.email) + '">Remove</button>') + '</li>').join('') + '</ul>' +
+        '<form class="row" id="sform" style="margin-top:14px;align-items:end"><div class="field"><label for="st_e">Email</label><input type="email" id="st_e" required></div><div class="field"><label for="st_r">Role</label><select id="st_r">' + Object.keys(ROLES).map((k) => '<option value="' + k + '">' + ROLES[k][0] + '</option>').join('') + '</select></div><button class="btn primary" type="submit">Add staff</button></form>';
+      $$('[data-rm]', card).forEach((b) => b.onclick = async () => { if (!confirm('Remove ' + b.dataset.rm + '?')) return; await SR.sb.from('staff_users').delete().eq('email', b.dataset.rm); SR.audit(actor(), 'Staff removed', b.dataset.rm); draw(); });
+      $('#sform', card).onsubmit = async (e) => { e.preventDefault(); const em = $('#st_e').value.trim().toLowerCase(); if (!SR.validEmail(em)) { toast('Enter a valid email'); return; } const { error: er } = await SR.sb.from('staff_users').upsert({ email: em, role: $('#st_r').value }); if (er) { toast(er.message); return; } SR.audit(actor(), 'Staff added', em + ' · ' + $('#st_r').value); draw(); };
+    };
+    draw();
   }
 
   /* ---------- delegated actions ---------- */
@@ -355,7 +401,7 @@
         case 'add': addBookingDlg(); break;
         case 'open': openRes(id); break;
         case 'confirm': if (setStatus(r, 'confirmed')) { rerender(); toast('Confirmed ' + r.ref); } break;
-        case 'export': csv([['Ref', 'Name', 'Phone', 'Date', 'Time', 'Guests', 'Arrived', 'Type', 'Event', 'Invited by', 'Source', 'Status', 'Tables']].concat(filteredRes().map((x) => [x.ref, x.name, can('seeContacts') ? x.phone : '', x.date, x.time, x.guests, x.arrived || 0, x.type, evName(x.eventId), x.invitedBy, x.channel, x.status, (x.tableIds || []).map(tName).join('; ')])), 'shaunz-royale-reservations.csv'); SR.audit(actor(), 'Export', 'Reservations CSV'); break;
+        case 'export': csv([['Ref', 'Name', 'Phone', 'Email', 'Date', 'Time', 'Guests', 'Arrived', 'Type', 'Event', 'Invited by', 'Source', 'Status', 'Tables']].concat(filteredRes().map((x) => [x.ref, x.name, can('seeContacts') ? x.phone : '', can('seeContacts') ? (x.email || '') : '', x.date, x.time, x.guests, x.arrived || 0, x.type, evName(x.eventId), x.invitedBy, x.channel, x.status, (x.tableIds || []).map(tName).join('; ')])), 'shaunz-royale-reservations.csv'); SR.audit(actor(), 'Export', 'Reservations CSV'); break;
         case 'ci': checkInDlg(r); break;
         case 'walkin': walkinDlg(); break;
         case 'ns': if (setStatus(r, 'no_show')) rerender(); break;
@@ -372,15 +418,11 @@
         case 'qback': q.stage = Math.max(0, q.stage - 1); SR.save(); SR.audit(actor(), 'Enquiry stage', q.ref + ' → ' + SR.STAGES[q.stage]); rerender(); break;
         case 'qedit': enqDlg(q); break;
         case 'qdecl': q.declined = !q.declined; SR.save(); SR.audit(actor(), q.declined ? 'Enquiry declined' : 'Enquiry reopened', q.ref); rerender(); break;
-        case 'qconv': { const rr = { id: SR.uid('rs'), ref: SR.ref('SR'), type: 'celebration', eventId: '', date: q.date, time: q.time, guests: q.guests, name: q.name, phone: q.phone, invitedBy: '', channel: 'Website (direct)', seating: q.space, requests: [q.occasion, q.food, q.decor].filter(Boolean).join(' · '), marketing: !!q.marketing, status: 'confirmed', tableIds: [], arrived: 0, checkIns: [], notes: 'From enquiry ' + q.ref, createdAt: SR.nowStamp(), source: 'celebration' }; d.reservations.push(rr); q.reservationId = rr.id; SR.save(); SR.audit(actor(), 'Enquiry converted', q.ref + ' → ' + rr.ref); rerender(); toast('Booking ' + rr.ref + ' created'); break; }
+        case 'qconv': { const rr = { id: SR.uid('rs'), ref: SR.ref('SR'), type: 'celebration', eventId: '', date: q.date, time: q.time, guests: q.guests, name: q.name, phone: q.phone, invitedBy: '', channel: 'Website (direct)', seating: q.space, requests: [q.occasion, q.food, q.decor].filter(Boolean).join(' · '), marketing: !!q.marketing, email: q.email || '', status: 'confirmed', tableIds: [], arrived: 0, checkIns: [], notes: 'From enquiry ' + q.ref, createdAt: SR.nowStamp(), source: 'celebration' }; d.reservations.push(rr); q.reservationId = rr.id; SR.save(); SR.audit(actor(), 'Enquiry converted', q.ref + ' → ' + rr.ref); rerender(); toast('Booking ' + rr.ref + ' created'); break; }
         case 'backup': { const a2 = document.createElement('a'); a2.href = URL.createObjectURL(new Blob([JSON.stringify(D(), null, 2)], { type: 'application/json' })); a2.download = 'shaunz-royale-backup-' + todayISO() + '.json'; a2.click(); break; }
-        case 'demo': loadDemo(); rerender(); toast('Demo bookings added'); break;
-        case 'fresh': if (confirm('Remove all sample events, tables, bookings and enquiries? Settings are kept.')) { d.events = []; d.tables = []; d.reservations = []; d.enquiries = []; d.sample = false; SR.save(); SR.audit(actor(), 'Sample data cleared', ''); rerender(); } break;
-        case 'reset': if (confirm('Reset everything to the original sample data?')) { SR.reset(); rerender(); } break;
       }
     };
   }
 
-  if (role && !location.hash) location.hash = '#/' + PERMS[role][0];
-  render();
+  boot();
 })();

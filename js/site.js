@@ -97,7 +97,7 @@
 
   /* ---------- booking wizard ---------- */
   function newBooking(arg) {
-    bk = { step: 1, type: 'visit', eventId: '', date: '', time: '', guests: 2, name: '', phone: '', invitedBy: '', channel: '', seating: '', requests: '', consent: false, marketing: false, token: SR.uid('tk') };
+    bk = { step: 1, type: 'visit', eventId: '', date: '', time: '', guests: 2, name: '', phone: '', email: '', invitedBy: '', channel: '', seating: '', requests: '', consent: false, marketing: false, token: SR.uid('tk') };
     if (arg === 'table') bk.type = 'table';
     else if (arg && arg !== 'visit') { const ev = SR.eventById(arg); if (ev && ev.published && !ev.cancelled) { bk.eventId = ev.id; bk.date = ev.date; } }
   }
@@ -143,6 +143,7 @@
     return '<form class="form" id="s2" novalidate><div class="row">' +
       field('name', 'Full name', '<input type="text" id="name" autocomplete="name" value="' + esc(bk.name) + '">', { req: true }) +
       field('phone', 'Phone number', '<input type="tel" id="phone" inputmode="tel" autocomplete="tel" placeholder="0803 000 0000" value="' + esc(bk.phone) + '">', { req: true, hint: 'Nigerian or international. We use it to reach you about this booking.' }) + '</div>' +
+      field('email', 'Email address', '<input type="email" id="email" autocomplete="email" inputmode="email" placeholder="you@example.com" value="' + esc(bk.email) + '">', { req: true, hint: 'We’ll email your booking details and any updates here.' }) +
       '<div class="row">' + field('invitedBy', 'Who invited you?', '<input type="text" id="invitedBy" placeholder="Friend, host or promoter (optional)" value="' + esc(bk.invitedBy) + '">') +
       field('channel', 'How did you hear about us?', '<select id="channel"><option value="">Select (optional)</option>' + ['Instagram', 'WhatsApp', 'Website (direct)', 'Friend or host', 'Promoter', 'Other'].map((c) => '<option' + (bk.channel === c ? ' selected' : '') + '>' + c + '</option>').join('') + '</select>') + '</div>' +
       (bk.type === 'table' ? field('seating', 'Seating preference', '<select id="seating"><option value="">No preference</option>' + ['Standard table', 'VIP table', 'Private area', 'Near the dance floor', 'Quieter corner'].map((c) => '<option' + (bk.seating === c ? ' selected' : '') + '>' + c + '</option>').join('') + '</select>', { hint: 'Our team assigns the exact table. Preferences are not guaranteed.' }) : '') +
@@ -152,7 +153,7 @@
 
   function step3() {
     const ev = bk.eventId ? SR.eventById(bk.eventId) : null;
-    const rows = [['Booking', bk.type === 'table' ? 'Table reservation' : 'Visit'], ['Event', ev ? ev.title : 'General visit'], ['Date', fmtDate(bk.date)], ['Arrival', fmtTime(bk.time)], ['Guests', bk.guests], ['Name', bk.name], ['Phone', bk.phone]];
+    const rows = [['Booking', bk.type === 'table' ? 'Table reservation' : 'Visit'], ['Event', ev ? ev.title : 'General visit'], ['Date', fmtDate(bk.date)], ['Arrival', fmtTime(bk.time)], ['Guests', bk.guests], ['Name', bk.name], ['Phone', bk.phone], ['Email', bk.email]];
     if (bk.invitedBy) rows.push(['Invited by', bk.invitedBy]); if (bk.seating) rows.push(['Seating', bk.seating]); if (bk.requests) rows.push(['Requests', bk.requests]);
     return '<form class="form" id="s3" novalidate><h3>Review your booking</h3><dl class="summary">' + rows.map((r) => '<div><dt>' + r[0] + '</dt><dd>' + esc(r[1]) + '</dd></div>').join('') + '</dl>' +
       '<div class="notice"><b>This is a reservation request.</b> Your spot is only confirmed once our team accepts it and we tell you so. No payment is needed to submit.</div>' +
@@ -165,7 +166,7 @@
 
   function bindStep() {
     const f1 = $('#s1'), f2 = $('#s2'), f3 = $('#s3');
-    $$('#wiz #back').forEach((b) => b.addEventListener('click', () => { if (bk.step === 2) collect(['name', 'phone', 'invitedBy', 'channel', 'requests'].concat(bk.type === 'table' ? ['seating'] : [])); if (bk.step === 3) { bk.consent = val('consent'); bk.marketing = val('marketing'); } bk.step--; renderStep(); }));
+    $$('#wiz #back').forEach((b) => b.addEventListener('click', () => { if (bk.step === 2) collect(['name', 'phone', 'email', 'invitedBy', 'channel', 'requests'].concat(bk.type === 'table' ? ['seating'] : [])); if (bk.step === 3) { bk.consent = val('consent'); bk.marketing = val('marketing'); } bk.step--; renderStep(); }));
     if (f1) {
       $$('input[name=type]', f1).forEach((r) => r.addEventListener('change', () => { bk.type = r.value; const h = $('.site-header'); document.querySelector('#app h1').textContent = bk.type === 'table' ? 'Reserve a Table' : 'Book a Visit'; }));
       $('#eventId').addEventListener('change', (e) => {
@@ -185,30 +186,33 @@
     }
     if (f2) f2.addEventListener('submit', (e) => {
       e.preventDefault();
-      const name = val('name'), phone = val('phone');
+      const name = val('name'), phone = val('phone'), email = val('email');
       setErr('name', name.length < 2 ? 'Please enter your full name.' : '');
       setErr('phone', !phone ? 'Please enter your phone number.' : !SR.validPhone(phone) ? 'That doesn’t look like a valid phone number.' : '');
-      if (name.length < 2 || !SR.validPhone(phone)) { focusFirstError(); return; }
-      collect(['name', 'phone', 'invitedBy', 'channel', 'requests'].concat(bk.type === 'table' ? ['seating'] : [])); bk.step = 3; renderStep();
+      setErr('email', !email ? 'Please enter your email address.' : !SR.validEmail(email) ? 'That doesn’t look like a valid email address.' : '');
+      if (name.length < 2 || !SR.validPhone(phone) || !SR.validEmail(email)) { focusFirstError(); return; }
+      collect(['name', 'phone', 'email', 'invitedBy', 'channel', 'requests'].concat(bk.type === 'table' ? ['seating'] : [])); bk.step = 3; renderStep();
     });
-    if (f3) f3.addEventListener('submit', (e) => {
+    if (f3) f3.addEventListener('submit', async (e) => {
       e.preventDefault();
       bk.consent = val('consent'); bk.marketing = val('marketing');
       setErr('consent', bk.consent ? '' : 'Please agree so we can process your booking.');
       if (!bk.consent) { $('#consent').focus(); return; }
       const btn = $('#submitBtn'); btn.disabled = true; btn.textContent = 'Submitting…';
-      const res = SR.submitReservation({ type: bk.type, eventId: bk.eventId, date: bk.date, time: bk.time, guests: bk.guests, name: bk.name, phone: bk.phone, invitedBy: bk.invitedBy, channel: bk.channel || (bk.invitedBy ? 'Friend or host' : 'Website (direct)'), seating: bk.seating, requests: bk.requests, marketing: bk.marketing, token: bk.token });
+      const res = await SR.submitReservation({ type: bk.type, eventId: bk.eventId, date: bk.date, time: bk.time, guests: bk.guests, name: bk.name, phone: bk.phone, email: bk.email, invitedBy: bk.invitedBy, channel: bk.channel || (bk.invitedBy ? 'Friend or host' : 'Website (direct)'), seating: bk.seating, requests: bk.requests, marketing: bk.marketing, token: bk.token });
+      $$('#s3 .notice.bad').forEach((n) => n.remove());
       if (!res.ok) { btn.disabled = false; btn.textContent = 'Submit Request'; $('#e_consent').insertAdjacentHTML('afterend', '<div class="notice bad" role="alert" style="margin-top:12px">' + esc(res.error) + '</div>'); return; }
-      bk.done = successHtml(res.reservation); renderStep();
+      bk.done = successHtml(Object.assign({ date: bk.date }, res.reservation), bk.email); renderStep();
     });
   }
 
-  function successHtml(r) {
+  function successHtml(r, email) {
     const waiting = r.status === 'waitlisted';
     const msg = 'Hello Shaunz Royale, my booking reference is ' + r.ref + ' (' + r.name + ', ' + fmtDate(r.date) + ').';
     return '<div style="text-align:center"><div style="font-size:2.4rem" aria-hidden="true">' + (waiting ? '⏳' : '✨') + '</div><h2>' + (waiting ? 'You’re on the waitlist' : 'Request received') + '</h2>' +
       '<p class="muted">' + (waiting ? 'This event has no spots left right now. We’ll contact you if one opens up. You are <b>not</b> confirmed yet.' : 'Thank you, ' + esc(r.name.split(' ')[0]) + '. Your reservation is <b>pending review</b>. It is not confirmed until our team accepts it and tells you so.') + '</p>' +
       '<div class="refbox" aria-label="Booking reference">' + r.ref + '</div><p>' + statusBadge(r.status) + '</p>' +
+      '<p>📧 We’re emailing your booking details to <b>' + esc(email) + '</b>. If it doesn’t arrive in a few minutes, check your spam folder.</p>' +
       '<p class="muted">Save this reference. You can check your status anytime with your reference and phone number.</p>' +
       '<div class="cta-row" style="justify-content:center"><a class="btn primary" href="#/track">Check booking status</a>' + (S().whatsapp ? '<a class="btn" target="_blank" rel="noopener" href="' + waLink(msg) + '">Send on WhatsApp</a>' : '') + '<a class="btn" href="#/">Back home</a></div></div>';
   }
@@ -218,6 +222,7 @@
     return pageHead('Plan a Celebration', 'Birthdays, anniversaries, hangouts and private events. Share your plans in one short form and our team will take it from there.') +
       '<section class="block" style="padding-top:0"><div class="wrap" style="max-width:760px"><div class="panel" id="celeb"><form class="form" id="cf" novalidate>' +
       '<div class="row">' + field('c_name', 'Host’s name', '<input type="text" id="c_name" autocomplete="name">', { req: true }) + field('c_phone', 'Phone number', '<input type="tel" id="c_phone" inputmode="tel" autocomplete="tel" placeholder="0803 000 0000">', { req: true }) + '</div>' +
+      field('c_email', 'Email address', '<input type="email" id="c_email" autocomplete="email" inputmode="email" placeholder="you@example.com">', { req: true, hint: 'We’ll email your enquiry details and our offer here.' }) +
       '<div class="row">' + field('c_occasion', 'Occasion', '<select id="c_occasion"><option value="">Select…</option>' + ['Birthday', 'Anniversary', 'Friends’ hangout', 'Private party', 'Other'].map((o) => '<option>' + o + '</option>').join('') + '</select>', { req: true }) +
       field('c_space', 'Space preference', '<select id="c_space">' + ['Undecided', 'Table', 'VIP area', 'Private area'].map((o) => '<option>' + o + '</option>').join('') + '</select>') + '</div>' +
       '<div class="row">' + field('c_date', 'Preferred date', '<input type="date" id="c_date" min="' + todayISO() + '">', { req: true }) + field('c_time', 'Expected arrival time', '<input type="time" id="c_time">', { req: true }) + '</div>' +
@@ -234,12 +239,13 @@
   let celebToken = null;
   views.celebrations.after = function () {
     celebToken = celebToken || SR.uid('tk');
-    $('#cf').addEventListener('submit', (e) => {
+    $('#cf').addEventListener('submit', async (e) => {
       e.preventDefault();
       const v = (id) => val('c_' + id), checks = [];
       const chk = (id, bad, msg) => { setErr('c_' + id, bad ? msg : ''); if (bad) checks.push(id); };
       chk('name', v('name').length < 2, 'Please enter the host’s name.');
       chk('phone', !SR.validPhone(v('phone')), 'Please enter a valid phone number.');
+      chk('email', !SR.validEmail(v('email')), 'Please enter a valid email address.');
       chk('occasion', !v('occasion'), 'Please choose an occasion.');
       chk('date', !v('date') || v('date') < todayISO(), 'Please choose a date that has not passed.');
       chk('time', !v('time'), 'Please enter an expected arrival time.');
@@ -247,10 +253,12 @@
       setErr('c_consent', val('c_consent') ? '' : 'Please agree so we can respond to your enquiry.'); if (!val('c_consent')) checks.push('consent');
       if (checks.length) { focusFirstError(); return; }
       const b = $('#c_submit'); b.disabled = true; b.textContent = 'Sending…';
-      const res = SR.submitEnquiry({ name: v('name'), phone: v('phone'), occasion: v('occasion'), space: v('space'), date: v('date'), time: v('time'), guests: +v('guests'), budget: v('budget'), food: v('food'), decor: v('decor'), notes: v('notes'), marketing: val('c_marketing'), token: celebToken });
+      const res = await SR.submitEnquiry({ name: v('name'), phone: v('phone'), email: v('email'), occasion: v('occasion'), space: v('space'), date: v('date'), time: v('time'), guests: +v('guests'), budget: v('budget'), food: v('food'), decor: v('decor'), notes: v('notes'), marketing: val('c_marketing'), token: celebToken });
+      $$('#cf .notice.bad').forEach((n) => n.remove());
+      if (!res.ok) { b.disabled = false; b.textContent = 'Send Enquiry'; b.insertAdjacentHTML('beforebegin', '<div class="notice bad" role="alert">' + esc(res.error) + '</div>'); return; }
       celebToken = null;
       const q = res.enquiry, msg = 'Hello Shaunz Royale, my celebration enquiry reference is ' + q.ref + '.';
-      $('#celeb').innerHTML = '<div style="text-align:center"><div style="font-size:2.4rem" aria-hidden="true">🥂</div><h2>Enquiry received</h2><p class="muted">Thank you, ' + esc(q.name.split(' ')[0]) + '. Our team will review availability for ' + fmtDate(q.date) + ' and come back to you with an offer. This is not a confirmed booking yet.</p>' +
+      $('#celeb').innerHTML = '<div style="text-align:center"><div style="font-size:2.4rem" aria-hidden="true">🥂</div><h2>Enquiry received</h2><p class="muted">Thank you, ' + esc(q.name.split(' ')[0]) + '. Our team will review availability for ' + fmtDate(q.date) + ' and come back to you with an offer. This is not a confirmed booking yet.</p><p>📧 We’re emailing the details to <b>' + esc(v('email')) + '</b>. Check your spam folder if it doesn’t arrive.</p>' +
         '<div class="refbox">' + q.ref + '</div><p class="muted">Use this reference and your phone number to follow your enquiry’s progress.</p><div class="cta-row" style="justify-content:center"><a class="btn primary" href="#/track">Track my enquiry</a>' + (S().whatsapp ? '<a class="btn" target="_blank" rel="noopener" href="' + waLink(msg) + '">Send on WhatsApp</a>' : '') + '</div></div>';
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
@@ -265,14 +273,15 @@
       '<button class="btn primary" type="submit">Check status</button></form><div id="tres" style="margin-top:22px" aria-live="polite"></div></div></div></section>';
   };
   views.track.after = function () {
-    $('#tf').addEventListener('submit', (e) => {
+    $('#tf').addEventListener('submit', async (e) => {
       e.preventDefault();
       setErr('t_ref', val('t_ref') ? '' : 'Enter your reference.'); setErr('t_phone', val('t_phone') ? '' : 'Enter your phone number.');
       if (!val('t_ref') || !val('t_phone')) { focusFirstError(); return; }
-      const r = SR.lookup(val('t_ref'), val('t_phone')), out = $('#tres');
+      const out = $('#tres'); out.innerHTML = '<p class="muted">Checking…</p>';
+      let r; try { r = await SR.lookup(val('t_ref'), val('t_phone')); } catch (err) { out.innerHTML = '<div class="notice bad">We couldn’t reach the server. Please check your connection and try again.</div>'; return; }
       if (!r) { out.innerHTML = '<div class="notice bad">We couldn’t find a booking matching that reference and phone number. Please check both and try again.</div>'; return; }
       if (r.kind === 'reservation') {
-        const x = r.item, ev = x.eventId ? SR.eventById(x.eventId) : null;
+        const x = r.item, ev = { title: x.eventTitle, cancelled: x.eventCancelled };
         const next = { pending: 'Our team is reviewing your request. We’ll contact you once it’s decided.', confirmed: 'You’re confirmed. See you there!', waitlisted: 'You’re on the waitlist. We’ll contact you if a spot opens.', rejected: 'Sorry, we couldn’t accept this request. Please contact the venue or try another date.', cancelled: 'This booking has been cancelled.', checked_in: 'Welcome in! Enjoy your night.', completed: 'Thanks for visiting Shaunz Royale.', no_show: 'This booking was marked as a no-show.' }[x.status] || '';
         out.innerHTML = '<h3>' + esc(x.ref) + ' ' + statusBadge(x.status) + '</h3><p class="muted">' + next + '</p><dl class="summary"><div><dt>Event</dt><dd>' + esc(ev ? ev.title : 'General visit') + (ev && ev.cancelled ? ' (cancelled)' : '') + '</dd></div><div><dt>Date</dt><dd>' + fmtDate(x.date) + '</dd></div><div><dt>Arrival</dt><dd>' + fmtTime(x.time) + '</dd></div><div><dt>Guests</dt><dd>' + x.guests + '</dd></div></dl>';
       } else {
@@ -312,9 +321,17 @@
   };
 
   /* ---------- router ---------- */
-  function route() {
+  let routeId = 0, loadedAt = 0;
+  async function route() {
+    const my = ++routeId;
     const h = location.hash.replace(/^#\/?/, ''), [name, arg] = h.split('/');
     const key = views[name || 'home'] ? (name || 'home') : 'home';
+    if (!loadedAt || Date.now() - loadedAt > 30000) {
+      if (!loadedAt) app.innerHTML = '<div class="wrap" style="padding:120px 16px;text-align:center"><p class="muted">Loading…</p></div>';
+      try { await SR.loadPublic(); loadedAt = Date.now(); renderFooter(); }
+      catch (err) { if (my !== routeId) return; if (!loadedAt) { app.innerHTML = '<div class="wrap" style="padding:100px 16px;text-align:center"><h2>We couldn’t load the page</h2><p class="muted">Please check your connection and try again.</p><button class="btn primary" onclick="location.reload()">Retry</button></div>'; return; } }
+    }
+    if (my !== routeId) return;
     app.innerHTML = views[key](arg);
     if (views[key].after) views[key].after(arg);
     $$('.nav a[data-r]').forEach((a) => a.toggleAttribute('aria-current', a.dataset.r === key || (key === 'home' && a.dataset.r === 'home')) );
@@ -326,7 +343,8 @@
   $('#menuBtn').addEventListener('click', () => { const n = $('#nav'); const o = n.classList.toggle('open'); $('#menuBtn').setAttribute('aria-expanded', o); });
   window.addEventListener('hashchange', route);
 
-  const s = S(); $('#yr').textContent = new Date().getFullYear();
-  $('#ftContact').innerHTML = '<li>' + esc(s.address) + '</li>' + (s.phone ? '<li><a href="tel:' + esc(s.phone.replace(/\s/g, '')) + '">' + esc(s.phone) + '</a></li>' : '') + (s.email ? '<li><a href="mailto:' + esc(s.email) + '">' + esc(s.email) + '</a></li>' : '') + (s.instagram ? '<li><a target="_blank" rel="noopener" href="' + esc(s.instagram) + '">Instagram</a></li>' : '') + '<li><a target="_blank" rel="noopener" href="' + mapsUrl + '">Directions</a></li>';
+  $('#yr').textContent = new Date().getFullYear();
+  function renderFooter() { const s = S();
+  $('#ftContact').innerHTML = '<li>' + esc(s.address) + '</li>' + (s.phone ? '<li><a href="tel:' + esc(s.phone.replace(/\s/g, '')) + '">' + esc(s.phone) + '</a></li>' : '') + (s.email ? '<li><a href="mailto:' + esc(s.email) + '">' + esc(s.email) + '</a></li>' : '') + (s.instagram ? '<li><a target="_blank" rel="noopener" href="' + esc(s.instagram) + '">Instagram</a></li>' : '') + '<li><a target="_blank" rel="noopener" href="' + mapsUrl + '">Directions</a></li>'; }
   route();
 })();

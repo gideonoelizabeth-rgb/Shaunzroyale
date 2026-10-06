@@ -1,7 +1,9 @@
-/* Shaunz Royale — shared data layer (browser localStorage).
-   Replace with a real backend + PostgreSQL for production (see README). */
+/* Shaunz Royale — shared data layer (Supabase).
+   Public site: reads via anonymous RPC functions, writes bookings via RPC.
+   Staff dashboard: signed-in staff read/write tables directly (row-level security enforces roles). */
 (function () {
-  const KEY = 'shaunz_royale_v1';
+  const CFG = window.SR_CONFIG || {};
+  const sb = window.supabase ? window.supabase.createClient(CFG.url, CFG.key) : null;
   const TZ = 'Africa/Lagos';
   const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -15,52 +17,76 @@
   const fmtStamp = (s) => new Date(s).toLocaleString('en-NG', { timeZone: TZ, day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
   const uid = (p) => p + '_' + Math.random().toString(36).slice(2, 10);
   const ALPHA = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  const ref = (p) => { let s = ''; const a = new Uint8Array(6); (window.crypto || {}).getRandomValues ? crypto.getRandomValues(a) : a.forEach((_, i) => a[i] = Math.random() * 255); a.forEach((n) => s += ALPHA[n % ALPHA.length]); return p + '-' + s; };
+  const ref = (p) => { let s = ''; const a = new Uint8Array(6); crypto.getRandomValues(a); a.forEach((n) => s += ALPHA[n % ALPHA.length]); return p + '-' + s; };
   const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const normPhone = (p) => { let d = String(p || '').replace(/[^\d+]/g, ''); if (d.startsWith('+')) return d.slice(1); if (d.startsWith('00')) return d.slice(2); if (d.startsWith('0')) return '234' + d.slice(1); return d; };
   const validPhone = (p) => { const d = String(p || '').replace(/[\s()-]/g, ''); return /^(\+?\d{10,15})$/.test(d); };
+  const validEmail = (e) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(e || '').trim());
 
   const IMG = { neon: 'assets/image10.jpg', lounge: 'assets/image7.jpg', vip: 'assets/image5.jpg', bday: 'assets/image3.jpg' };
 
-  function seed() {
-    const mk = (title, cat, dayIdx, weeks, img, desc, pos) => {
-      const out = []; let d = nextDow(dayIdx);
-      for (let i = 0; i < weeks; i++) { out.push({ id: uid('ev'), title, category: cat, date: d, start: '', end: '', description: desc, price: '', capacity: 120, image: img, imagePos: pos || 'center', published: true, cancelled: false, soldOut: false, tablesEnabled: true, policy: '' }); d = addDays(d, 7); }
-      return out;
-    };
-    const events = [].concat(
-      mk("Wednesday Ladies' Night", "Ladies' Night", 3, 3, IMG.lounge, 'A night made for the ladies. Good music, great company.'),
-      mk('Friday Club Night', 'Club Nights', 5, 3, IMG.neon, 'The major night of the week. Bring your people and own the floor.', 'center 30%'),
-      mk('Ballers Linkup', 'Club Nights', 6, 3, IMG.vip, 'Saturday link-up for the ballers. Reserve a table and settle in.'),
-      mk('Red Room', 'Seasonal and One-off Events', 0, 3, IMG.neon, 'Sunday in the Red Room. A different kind of vibe.', 'center 70%')
-    ).sort((a, b) => a.date.localeCompare(b.date));
-    const tables = [
-      ['A1', 'Table A1', 4, 'Standard'], ['A2', 'Table A2', 4, 'Standard'], ['A3', 'Table A3', 4, 'Standard'],
-      ['V1', 'Table V1', 6, 'VIP'], ['V2', 'Table V2', 6, 'VIP'], ['P1', 'Private Area P1', 12, 'Private area']
-    ].map(([code, name, seats, type]) => ({ id: uid('tb'), code, name, seats, type, active: true, blockedUntil: '', blockNote: '' }));
-    return {
-      v: 1, sample: true,
-      settings: { address: 'Around Shebi Junction, Ilesha–Owo Express Road, Akure, Ondo State', phone: '', whatsapp: '', email: '', instagram: '', hours: '', graceMinutes: 90, tableDurationMins: 180, turnoverBufferMins: 30 },
-      events, tables, reservations: [], enquiries: [], audit: [], notifications: []
-    };
+  const DEFAULT_SETTINGS = { address: 'Around Shebi Junction, Ilesha–Owo Express Road, Akure, Ondo State', phone: '', whatsapp: '', email: '', instagram: '', hours: '', graceMinutes: 90, tableDurationMins: 180, turnoverBufferMins: 30, alertEmail: '', alertWhatsapp: '' };
+  let mode = 'public';
+  const state = { settings: Object.assign({}, DEFAULT_SETTINGS), events: [], tables: [], reservations: [], enquiries: [], audit: [] };
+  const KEYMAP = { events: 'events', tables: 'venue_tables', reservations: 'reservations', enquiries: 'enquiries' };
+  const snap = { events: {}, venue_tables: {}, reservations: {}, enquiries: {}, settings: '' };
+  const get = () => state;
+
+  /* ---------- public data ---------- */
+  async function loadPublic() {
+    const [e, s] = await Promise.all([sb.rpc('public_events'), sb.rpc('public_settings')]);
+    if (e.error) throw e.error;
+    state.events = e.data || [];
+    state.settings = Object.assign({}, DEFAULT_SETTINGS, s.data || {});
   }
 
-  let state = null;
-  function load() {
-    try { const raw = localStorage.getItem(KEY); if (raw) { state = JSON.parse(raw); return state; } } catch (e) { }
-    state = seed(); save(); return state;
+  /* ---------- staff data ---------- */
+  async function loadAll() {
+    const q = (t) => sb.from(t).select('*');
+    const [ev, tb, rs, en, st, au] = await Promise.all([q('events'), q('venue_tables'), q('reservations').order('created_at', { ascending: false }).limit(5000), q('enquiries'), q('settings').eq('id', 1).maybeSingle(), q('audit_logs').order('at', { ascending: false }).limit(200)]);
+    for (const r of [ev, tb, rs, en, st]) if (r.error) throw r.error;
+    mode = 'staff';
+    state.events = ev.data.map((r) => r.data); state.tables = tb.data.map((r) => r.data);
+    state.reservations = rs.data.map((r) => r.data); state.enquiries = en.data.map((r) => r.data);
+    state.settings = Object.assign({}, DEFAULT_SETTINGS, st.data ? st.data.data : {});
+    state.audit = (au.data || []).map((r) => ({ id: r.id, at: r.at, actor: r.actor, action: r.action, detail: r.detail }));
+    Object.keys(KEYMAP).forEach((k) => { snap[KEYMAP[k]] = {}; state[k].forEach((o) => { snap[KEYMAP[k]][o.id] = JSON.stringify(o); }); });
+    snap.settings = JSON.stringify(state.settings);
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { console.warn('Storage unavailable', e); } }
-  function reset() { state = seed(); save(); return state; }
-  const get = () => state || load();
-
-  function audit(actor, action, detail) { get().audit.unshift({ id: uid('au'), at: nowStamp(), actor: actor || 'Customer', action, detail: detail || '' }); get().audit = get().audit.slice(0, 500); save(); }
+  let chain = Promise.resolve();
+  const onError = { fn: null };
+  async function syncOnce() {
+    if (mode !== 'staff') return;
+    for (const key of Object.keys(KEYMAP)) {
+      const table = KEYMAP[key], s = snap[table], seen = new Set(), ups = [];
+      for (const o of state[key]) { seen.add(o.id); const j = JSON.stringify(o); if (s[o.id] !== j) ups.push({ id: o.id, data: JSON.parse(j) }); }
+      const dels = Object.keys(s).filter((id) => !seen.has(id));
+      if (ups.length) { const { error } = await sb.from(table).upsert(ups); if (error) throw error; ups.forEach((u) => { s[u.id] = JSON.stringify(u.data); }); }
+      if (dels.length) { const { error } = await sb.from(table).delete().in('id', dels); if (error) throw error; dels.forEach((id) => delete s[id]); }
+    }
+    const j = JSON.stringify(state.settings);
+    if (j !== snap.settings) { const { error } = await sb.from('settings').upsert({ id: 1, data: state.settings }); if (error) throw error; snap.settings = j; }
+  }
+  /* Persist any changes made to the in-memory state (diff-based). */
+  function save() { chain = chain.then(syncOnce).catch((e) => { console.error(e); if (onError.fn) onError.fn(e); }); return chain; }
+  const refresh = () => chain.then(loadAll);
+  function audit(actor, action, detail) {
+    const row = { id: uid('au'), actor: actor || 'Staff', action, detail: detail || '' };
+    state.audit.unshift(Object.assign({ at: nowStamp() }, row)); state.audit = state.audit.slice(0, 200);
+    if (mode === 'staff') sb.from('audit_logs').insert(row).then(({ error }) => { if (error) console.warn('audit', error.message); });
+  }
+  function subscribe(cb) {
+    const ch = sb.channel('sr-live');
+    ['reservations', 'enquiries', 'events', 'venue_tables', 'settings'].forEach((t) => ch.on('postgres_changes', { event: '*', schema: 'public', table: t }, (p) => cb(t, p)));
+    ch.subscribe(); return ch;
+  }
 
   /* ---------- availability ---------- */
   const COUNTS = ['confirmed', 'checked_in', 'completed'];
-  const eventById = (id) => get().events.find((e) => e.id === id);
+  const eventById = (id) => state.events.find((e) => e.id === id);
   function eventUsed(eventId) {
-    return get().reservations.filter((r) => r.eventId === eventId && COUNTS.includes(r.status)).reduce((n, r) => n + (r.type === 'walkin' ? (r.arrived || r.guests) : r.guests), 0);
+    if (mode === 'public') { const ev = eventById(eventId); return ev ? ev.used || 0 : 0; }
+    return state.reservations.filter((r) => r.eventId === eventId && COUNTS.includes(r.status)).reduce((n, r) => n + (r.type === 'walkin' ? (r.arrived || r.guests) : r.guests), 0);
   }
   function eventRemaining(ev) { return ev.capacity ? Math.max(0, ev.capacity - eventUsed(ev.id)) : Infinity; }
   function eventState(ev) {
@@ -68,52 +94,39 @@
     if (ev.soldOut || eventRemaining(ev) <= 0) return 'full';
     return 'open';
   }
-  const bookableEvents = () => get().events.filter((e) => e.published && !e.cancelled && e.date >= todayISO()).sort((a, b) => a.date.localeCompare(b.date) || (a.start || '').localeCompare(b.start || ''));
+  const bookableEvents = () => state.events.filter((e) => e.published && !e.cancelled && e.date >= todayISO()).sort((a, b) => a.date.localeCompare(b.date) || (a.start || '').localeCompare(b.start || ''));
 
   const toMin = (t) => { const [h, m] = (t || '00:00').split(':').map(Number); return h * 60 + m; };
   function tableConflict(tableId, date, time, ignoreResId) {
-    const s = get().settings, span = (+s.tableDurationMins || 180) + (+s.turnoverBufferMins || 0);
-    return get().reservations.find((r) => r.id !== ignoreResId && r.date === date && ['confirmed', 'checked_in'].includes(r.status) && (r.tableIds || []).includes(tableId) && Math.abs(toMin(r.time) - toMin(time)) < span) || null;
+    const s = state.settings, span = (+s.tableDurationMins || 180) + (+s.turnoverBufferMins || 0);
+    return state.reservations.find((r) => r.id !== ignoreResId && r.date === date && ['confirmed', 'checked_in'].includes(r.status) && (r.tableIds || []).includes(tableId) && Math.abs(toMin(r.time) - toMin(time)) < span) || null;
   }
   function tableStatus(t, date) {
     if (!t.active || (t.blockedUntil && t.blockedUntil >= date)) return { s: 'unavailable', res: null };
-    const rs = get().reservations.filter((r) => r.date === date && (r.tableIds || []).includes(t.id) && ['confirmed', 'checked_in'].includes(r.status));
+    const rs = state.reservations.filter((r) => r.date === date && (r.tableIds || []).includes(t.id) && ['confirmed', 'checked_in'].includes(r.status));
     const occ = rs.find((r) => r.status === 'checked_in');
     if (occ) return { s: 'occupied', res: occ };
     if (rs.length) return { s: 'reserved', res: rs[0] };
     return { s: 'available', res: null };
   }
 
-  /* ---------- customer actions ---------- */
-  function submitReservation(d) {
-    const st = get();
-    // idempotency: a retried submission with the same token returns the original booking
-    const dup = st.reservations.find((r) => r.token && r.token === d.token);
-    if (dup) return { ok: true, reservation: dup, duplicate: true };
-    const ev = d.eventId ? eventById(d.eventId) : null;
-    if (d.eventId && (!ev || !ev.published || ev.cancelled)) return { ok: false, error: 'This event is no longer open for booking.' };
-    if (d.date < todayISO()) return { ok: false, error: 'Please choose a date that has not passed.' };
-    let status = 'pending';
-    if (ev && (ev.soldOut || eventRemaining(ev) < d.guests)) status = 'waitlisted';
-    const r = Object.assign({ id: uid('rs'), ref: ref('SR'), status, tableIds: [], arrived: 0, checkIns: [], notes: '', createdAt: nowStamp(), source: 'website' }, d);
-    st.reservations.push(r); save(); audit('Customer', 'Booking submitted', r.ref + ' · ' + r.guests + ' guests · ' + r.date);
-    return { ok: true, reservation: r };
+  /* ---------- customer actions (server-validated RPCs) ---------- */
+  async function submitReservation(d) {
+    const { data, error } = await sb.rpc('submit_reservation', { p: d });
+    if (error) return { ok: false, error: 'We couldn’t reach the server. Please check your connection and try again.', network: true };
+    if (!data.ok) return { ok: false, error: data.error };
+    return { ok: true, duplicate: !!data.duplicate, reservation: { ref: data.ref, status: data.status, name: data.name } };
   }
-  function submitEnquiry(d) {
-    const st = get();
-    const dup = st.enquiries.find((r) => r.token && r.token === d.token);
-    if (dup) return { ok: true, enquiry: dup, duplicate: true };
-    const q = Object.assign({ id: uid('en'), ref: ref('CE'), stage: 0, declined: false, quote: '', followUp: '', nextAction: '', createdAt: nowStamp(), reservationId: '' }, d);
-    st.enquiries.push(q); save(); audit('Customer', 'Celebration enquiry', q.ref + ' · ' + q.occasion + ' · ' + q.date);
-    return { ok: true, enquiry: q };
+  async function submitEnquiry(d) {
+    const { data, error } = await sb.rpc('submit_enquiry', { p: d });
+    if (error) return { ok: false, error: 'We couldn’t reach the server. Please check your connection and try again.', network: true };
+    if (!data.ok) return { ok: false, error: data.error };
+    return { ok: true, duplicate: !!data.duplicate, enquiry: { ref: data.ref, name: data.name, date: data.date } };
   }
-  function lookup(refCode, phone) {
-    const c = String(refCode || '').trim().toUpperCase(), p = normPhone(phone);
-    const r = get().reservations.find((x) => x.ref === c && normPhone(x.phone) === p);
-    if (r) return { kind: 'reservation', item: r };
-    const q = get().enquiries.find((x) => x.ref === c && normPhone(x.phone) === p);
-    if (q) return { kind: 'enquiry', item: q };
-    return null;
+  async function lookup(refCode, phone) {
+    const { data, error } = await sb.rpc('lookup_booking', { p_ref: refCode, p_phone: phone });
+    if (error) throw error;
+    return data;
   }
 
   const STATUS = {
@@ -125,6 +138,5 @@
   const STAGES = ['Enquiry submitted', 'Availability reviewed', 'Offer sent', 'Deposit / payment', 'Booking confirmed', 'Event completed'];
   const CHANNELS = ['Instagram', 'WhatsApp', 'Website (direct)', 'Friend or host', 'Promoter', 'Walk-in', 'Other'];
 
-  window.SR = { TZ, DAY_NAMES, IMG, todayISO, addDays, dow, nextDow, fmtDate, fmtTime, fmtStamp, nowStamp, uid, ref, esc, normPhone, validPhone, load, get, save, reset, audit, eventById, eventUsed, eventRemaining, eventState, bookableEvents, tableConflict, tableStatus, toMin, submitReservation, submitEnquiry, lookup, STATUS, STAGES, CHANNELS, COUNTS };
-  load();
+  window.SR = { sb, TZ, DAY_NAMES, IMG, todayISO, addDays, dow, nextDow, fmtDate, fmtTime, fmtStamp, nowStamp, uid, ref, esc, normPhone, validPhone, validEmail, get, loadPublic, loadAll, save, refresh, audit, subscribe, onError, eventById, eventUsed, eventRemaining, eventState, bookableEvents, tableConflict, tableStatus, toMin, submitReservation, submitEnquiry, lookup, STATUS, STAGES, CHANNELS, COUNTS };
 })();
