@@ -1,7 +1,13 @@
 {
-  "cleanUrls": true,
   "rewrites": [
-    { "source": "/(events|menu|celebrations|about|track|book|info)", "destination": "/index.html" },
-    { "source": "/(book|info)/:rest*", "destination": "/index.html" }
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/events", "destination": "/index.html" },
+    { "source": "/menu", "destination": "/index.html" },
+    { "source": "/celebrations", "destination": "/index.html" },
+    { "source": "/about", "destination": "/index.html" },
+    { "source": "/track", "destination": "/index.html" },
+    { "source": "/book", "destination": "/index.html" },
+    { "source": "/book/:rest*", "destination": "/index.html" },
+    { "source": "/info/:rest*", "destination": "/index.html" }
   ]
 }
