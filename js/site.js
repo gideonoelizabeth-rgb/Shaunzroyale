@@ -32,28 +32,31 @@
       '<div class="body"><span class="tag ' + st + '">' + label + '</span><h3>' + esc(ev.title) + '</h3>' +
       '<div class="meta"><span>' + fmtDate(ev.date, { year: undefined }) + '</span>' + (time ? '<span>' + time + '</span>' : '') + (ev.price ? '<span>' + esc(ev.price) + '</span>' : '') + '</div>' +
       '<p class="muted">' + esc(ev.description) + '</p>' +
-      (st === 'cancelled' ? '' : '<a class="btn primary" href="#/book/' + ev.id + '">' + (st === 'full' ? 'Join Waitlist' : 'Book This Event') + '</a>') + '</article>';
+      (st === 'cancelled' ? '' : '<a class="btn primary" href="/book/' + ev.id + '">' + (st === 'full' ? 'Join Waitlist' : 'Book This Event') + '</a>') + '</article>';
   }
 
   /* ---------- views ---------- */
   const views = {};
 
   views.home = function () {
-    const evs = SR.bookableEvents().slice(0, 3);
-    return '<section class="hero" style="--hero-img:url(\'' + new URL(SR.IMG.neon, location.href).href + '\')"><div class="wrap"><div class="hero-inner">' +
+    const all = SR.bookableEvents(), week = all.filter((e) => e.date <= addDays(todayISO(), 6));
+    const evs = (week.length ? week : all).slice(0, 4);
+    return '<section class="hero" style="--hero-img:url(\'' + new URL(SR.IMG.neon, document.baseURI).href + '\')"><div class="wrap"><div class="hero-inner">' +
       '<span class="eyebrow">Akure · Lounge &amp; Nightclub</span><h1>Your next night out starts here.</h1>' +
       '<p class="lead">Discover the vibe. Bring your people. Reserve your spot.</p>' +
-      '<div class="cta-row"><a class="btn primary" href="#/book">Book a Visit</a><a class="btn" href="#/celebrations">Plan a Celebration</a></div></div></div></section>' +
+      '<div class="cta-row"><a class="btn primary" href="/book">Book a Visit</a><a class="btn" href="/celebrations">Plan a Celebration</a></div></div></div></section>' +
 
-      '<section class="block"><div class="wrap"><div class="section-head"><div class="rule">✦</div><h2>Upcoming events</h2><p>The next nights at Shaunz Royale. Pick one and reserve your spot.</p></div>' +
-      (evs.length ? '<div class="grid cols-3">' + evs.map(eventCard).join('') + '</div><p style="margin-top:22px"><a class="btn" href="#/events">See all events</a></p>'
-        : '<div class="empty"><p>No events are published right now.</p><a class="btn primary" href="#/book">Make a general reservation</a></div>') + '</div></section>' +
+      '<section class="block"><div class="wrap"><div class="section-head"><div class="rule">✦</div><h2>' + (week.length ? 'This week at Shaunz Royale' : 'Coming up at Shaunz Royale') + '</h2><p>' + (week.length ? 'What’s on over the next seven days. Pick a night and reserve your spot.' : 'The next nights at Shaunz Royale. Pick one and reserve your spot.') + '</p></div>' +
+      (evs.length ? '<div class="grid cols-3">' + evs.map(eventCard).join('') + '</div><p style="margin-top:22px"><a class="btn" href="/events">See all events</a></p>'
+        : '<div class="empty"><p>We’re updating our upcoming nights. You can still reserve a visit or a table, or message us to ask what’s on.</p><div class="cta-row" style="justify-content:center"><a class="btn primary" href="/book">Make a reservation</a>' + (S().whatsapp ? '<a class="btn" target="_blank" rel="noopener" href="' + waLink('Hello Shaunz Royale, what is on this week?') + '">Ask on WhatsApp</a>' : '') + '</div></div>') + '</div></section>' +
+
+      planStrip() +
 
       '<section class="block band"><div class="wrap"><div class="section-head"><div class="rule">✦</div><h2>Choose your experience</h2><p>Three simple ways to get started.</p></div>' +
       '<div class="grid cols-3">' +
-      '<a class="card link" href="#/book/visit"><div class="ico" aria-hidden="true">🥂</div><h3>Book a Visit</h3><p>For individuals, couples and groups who want to come through.</p></a>' +
-      '<a class="card link" href="#/book/table"><div class="ico" aria-hidden="true">🛋️</div><h3>Reserve a Table</h3><p>Want a table or designated seating? Tell us your party size and preference.</p></a>' +
-      '<a class="card link" href="#/celebrations"><div class="ico" aria-hidden="true">🎂</div><h3>Plan a Celebration</h3><p>Birthdays, anniversaries, hangouts and private events, planned with you.</p></a></div></div></section>' +
+      '<a class="card link" href="/book/visit"><div class="ico" aria-hidden="true">🥂</div><h3>Book a Visit</h3><p>For individuals, couples and groups who want to come through.</p></a>' +
+      '<a class="card link" href="/book/table"><div class="ico" aria-hidden="true">🛋️</div><h3>Reserve a Table</h3><p>Want a table or designated seating? Tell us your party size and preference.</p></a>' +
+      '<a class="card link" href="/celebrations"><div class="ico" aria-hidden="true">🎂</div><h3>Plan a Celebration</h3><p>Birthdays, anniversaries, hangouts and private events, planned with you.</p></a></div></div></section>' +
 
       '<section class="block"><div class="wrap"><div class="section-head"><div class="rule">✦</div><h2>The Shaunz experience</h2><p>Lounge. Music. Food and drinks. Moments worth remembering.</p></div>' +
       '<div class="gallery"><figure><img src="' + SR.IMG.lounge + '" alt="Plush lounge seating under crystal chandeliers" loading="lazy"><figcaption>The Lounge</figcaption></figure>' +
@@ -62,28 +65,68 @@
 
       '<section class="block band"><div class="wrap split"><div><div class="rule" style="justify-content:flex-start">✦</div><h2>Celebrations &amp; group bookings</h2>' +
       '<p class="muted">Birthday, anniversary, link-up or private party? Share a few details and our team will review availability and come back to you with the next step. No long back-and-forth needed.</p>' +
-      '<div class="cta-row"><a class="btn primary" href="#/celebrations">Plan a Celebration</a></div></div>' +
+      '<div class="cta-row"><a class="btn primary" href="/celebrations">Plan a Celebration</a></div></div>' +
       '<div class="pic"><img src="' + SR.IMG.bday + '" alt="Gold balloon arch and birthday cake in a lounge setup" loading="lazy"></div></div></section>' +
 
       '<section class="block"><div class="wrap"><div class="section-head"><div class="rule">✦</div><h2>Find us</h2></div>' + findUs() + '</div></section>';
   };
+
+  /* Practical details guests ask before booking. Only shows what the venue has confirmed in Settings. */
+  function planStrip() {
+    const s = S(), items = [];
+    items.push(['🕘', 'Opening times', s.hours ? esc(s.hours) : 'Nights and start times are listed on each event above.']);
+    items.push(['✅', 'How booking works', 'Your request is confirmed only when our team accepts it. We email and message you the moment it is.']);
+    items.push(['💳', 'Deposits', s.depositNote ? esc(s.depositNote) : 'No payment is taken online. Any deposit or minimum spend is stated on the event or in your offer.']);
+    if (s.responseTime) items.push(['⏱️', 'When we reply', esc(s.responseTime)]);
+    return '<section class="block" style="padding:0 0 30px"><div class="wrap"><div class="grid cols-3">' + items.map((i) => '<div class="card" style="padding:18px"><div class="ico" aria-hidden="true">' + i[0] + '</div><h3 style="font-size:1rem">' + i[1] + '</h3><p>' + i[2] + '</p></div>').join('') + '</div></div></section>';
+  }
 
   function findUs() {
     const s = S();
     return '<div class="card"><ul class="facts">' +
       '<li><span class="k">Address</span><span>' + esc(s.address) + '</span></li>' +
       (s.phone ? '<li><span class="k">Phone</span><a href="tel:' + esc(s.phone.replace(/\s/g, '')) + '">' + esc(s.phone) + '</a></li>' : '') +
-      '<li><span class="k">Hours</span><span>' + (s.hours ? esc(s.hours) : 'Opening times vary by event. Check <a href="#/events">Events</a> or book to be sure.') + '</span></li></ul>' +
+      '<li><span class="k">Hours</span><span>' + (s.hours ? esc(s.hours) : 'Opening times vary by event. Check <a href="/events">Events</a> or book to be sure.') + '</span></li></ul>' +
       '<div class="cta-row" style="margin-top:0"><a class="btn primary" target="_blank" rel="noopener" href="' + mapsUrl + '">Get Directions</a>' +
-      (s.whatsapp ? '<a class="btn" target="_blank" rel="noopener" href="' + waLink('Hello Shaunz Royale, ') + '">Chat on WhatsApp</a>' : '') + '</div></div>';
+      (s.whatsapp ? '<a class="btn" target="_blank" rel="noopener" href="' + waLink('Hello Shaunz Royale, ') + '">Chat on WhatsApp</a>' : '') +
+      (s.reviewsUrl ? '<a class="btn" target="_blank" rel="noopener" href="' + esc(s.reviewsUrl) + '">Read guest reviews</a>' : '') + '</div></div>';
   }
+
+  /* ---------- menu & tables (content is entered by the venue in Settings) ---------- */
+  const lines = (t) => String(t || '').split('\n').map((l) => l.split('|').map((x) => x.trim())).filter((p) => p[0]);
+  const hasMenu = () => lines(S().menu).length > 0 || lines(S().packages).length > 0;
+  views.menu = function () {
+    const items = lines(S().menu), pk = lines(S().packages);
+    if (!items.length && !pk.length) return pageHead('Menu & Tables', 'Our menu and table options are being updated.') + '<section class="block" style="padding-top:0"><div class="wrap"><div class="empty"><p>Ask us what’s available and we’ll send it over.</p><a class="btn primary" href="/book">Reserve a table</a></div></div></section>';
+    // menu line format: Category | Item | Price | Note (price and note optional)
+    const groups = {}; items.forEach((p) => { if (p.length < 2) return; (groups[p[0]] = groups[p[0]] || []).push(p.slice(1)); });
+    return pageHead('Menu & Tables', 'Food, drinks and table options at Shaunz Royale.') +
+      '<section class="block" style="padding-top:0"><div class="wrap">' +
+      (pk.length ? '<div class="section-head"><div class="rule" style="justify-content:flex-start">✦</div><h2>Tables &amp; VIP packages</h2><p>Prices and minimum spends are set by the venue and may vary by night. Book to receive a confirmed offer.</p></div><div class="grid cols-3" style="margin-bottom:44px">' +
+        pk.map((p) => '<div class="card"><h3>' + esc(p[0]) + '</h3>' + (p[1] ? '<p style="color:var(--gold-light);font-weight:700;margin-bottom:8px">' + esc(p[1]) + '</p>' : '') + (p[2] ? '<p>' + esc(p[2]) + '</p>' : '') + '</div>').join('') + '</div><p><a class="btn primary" href="/book/table">Reserve a table</a></p>' : '') +
+      Object.keys(groups).map((g) => '<div class="section-head" style="margin-top:40px"><h2 style="font-size:1.5rem">' + esc(g) + '</h2></div><div class="card"><ul class="list">' + groups[g].map((p) => '<li><span><b>' + esc(p[0]) + '</b>' + (p[2] ? '<br><span class="muted">' + esc(p[2]) + '</span>' : '') + '</span><span style="color:var(--gold-light);font-weight:700;white-space:nowrap">' + esc(p[1] || '') + '</span></li>').join('') + '</ul></div>').join('') +
+      '</div></section>';
+  };
+
+  /* ---------- about ---------- */
+  views.about = function () {
+    const s = S();
+    return pageHead('About Shaunz Royale', 'A lounge and nightclub in Akure, Ondo State.') +
+      '<section class="block" style="padding-top:0"><div class="wrap split"><div>' +
+      (s.about ? s.about.split(/\n{2,}/).map((p) => '<p class="muted">' + esc(p) + '</p>').join('') : '') +
+      '<p class="muted">Shaunz Royale is a lounge and nightclub around Shebi Junction on the Ilesha–Owo Express Road in Akure. It is a place for club nights, food and drinks, and group celebrations.</p>' +
+      '<p class="muted">Come for a themed night with friends, reserve a table for the evening, or plan a birthday, anniversary or private party with our team. You can book from your phone in a few steps, with no account needed.</p>' +
+      '<div class="cta-row"><a class="btn primary" href="/events">See what’s on</a><a class="btn" href="/celebrations">Plan a birthday celebration</a><a class="btn" href="/book/table">Reserve a table</a></div></div>' +
+      '<div class="pic"><img src="' + SR.IMG.lounge + '" alt="Lounge seating under crystal chandeliers at Shaunz Royale, Akure" loading="lazy"></div></div></section>' +
+      '<section class="block band"><div class="wrap"><div class="section-head"><div class="rule">✦</div><h2>Find us in Akure</h2></div>' + findUs() + '</div></section>';
+  };
 
   views.events = function () {
     const evs = SR.bookableEvents();
     const cats = Array.from(new Set(evs.map((e) => e.category))).sort();
     return pageHead('Events', 'What’s happening at Shaunz Royale. Reserve your spot before it fills up.') +
       '<section class="block" style="padding-top:0"><div class="wrap"><div class="toolbar" style="display:flex;gap:10px;margin-bottom:18px"><label class="sr-only" for="catF">Filter by category</label><select id="catF" style="max-width:300px"><option value="">All categories</option>' + cats.map((c) => '<option>' + esc(c) + '</option>').join('') + '</select></div>' +
-      '<div id="evList">' + (evs.length ? '<div class="grid cols-3">' + evs.map(eventCard).join('') + '</div>' : '<div class="empty"><p>No upcoming events are published yet.</p><a class="btn primary" href="#/book">Make a general reservation</a></div>') + '</div></div></section>';
+      '<div id="evList">' + (evs.length ? '<div class="grid cols-3">' + evs.map(eventCard).join('') + '</div>' : '<div class="empty"><p>No upcoming events are published yet.</p><a class="btn primary" href="/book">Make a general reservation</a></div>') + '</div></div></section>';
   };
   views.events.after = function () {
     const f = $('#catF'); if (!f) return;
@@ -107,10 +150,22 @@
     if (!bk || bk.done || (arg && arg !== bk.arg)) newBooking(arg);
     bk.arg = arg || bk.arg || '';
     return pageHead(bk.type === 'table' ? 'Reserve a Table' : 'Book a Visit', 'Three quick steps. No account needed.') +
-      '<section class="block" style="padding-top:0"><div class="wrap" style="max-width:760px"><div class="panel" id="wiz"></div>' +
-      '<p class="muted" style="margin-top:16px;text-align:center">Already booked? <a href="#/track">Check your booking status</a></p></div></section>';
+      '<section class="block" style="padding-top:0"><div class="wrap" style="max-width:760px">' + bookingGuide() + '<div class="panel" id="wiz"></div>' +
+      '<p class="muted" style="margin-top:16px;text-align:center">Already booked? <a href="/track">Check your booking status</a></p></div></section>';
   };
   views.book.after = renderStep;
+
+  /* What guests need to know before they start: visit vs table, confirmation, deposits, response time. */
+  function bookingGuide() {
+    const s = S();
+    return '<details class="card" style="padding:16px 20px;margin-bottom:18px" open><summary style="cursor:pointer;font-weight:700;color:var(--gold-light)">Before you book: what to expect</summary><ul class="facts" style="margin:14px 0 0">' +
+      '<li><span class="k" style="flex-basis:110px">Visit</span><span>General entry for you and your group. It doesn’t reserve a table.</span></li>' +
+      '<li><span class="k" style="flex-basis:110px">Table</span><span>Tell us your party size and seating preference. Our team assigns the actual table, so a preference isn’t a guarantee.' + (hasMenu() ? ' See <a href="/menu">tables and packages</a>.' : '') + '</span></li>' +
+      '<li><span class="k" style="flex-basis:110px">Confirmation</span><span>Submitting sends a <b>request</b>. It’s confirmed only when our team accepts it, and you’ll get an email when it is. A full night goes on the waitlist.</span></li>' +
+      '<li><span class="k" style="flex-basis:110px">Deposit</span><span>' + (s.depositNote ? esc(s.depositNote) : 'No payment is taken on this site. If a deposit or minimum spend applies, we’ll tell you before confirming.') + '</span></li>' +
+      (s.responseTime ? '<li><span class="k" style="flex-basis:110px">Reply</span><span>' + esc(s.responseTime) + '</span></li>' : '') +
+      '</ul></details>';
+  }
 
   function renderStep() {
     const w = $('#wiz'); if (!w) return;
@@ -130,7 +185,7 @@
       field('eventId', 'Event', '<select id="eventId"><option value="">No specific event (general visit)</option>' + evs.map((e) => '<option value="' + e.id + '"' + (e.id === bk.eventId ? ' selected' : '') + '>' + esc(e.title) + ' — ' + fmtDate(e.date, { year: undefined }) + '</option>').join('') + '</select>', { hint: '<span id="evHint">' + evHint(ev) + '</span>' }) +
       '<div class="row">' + field('date', 'Date', '<input type="date" id="date" min="' + todayISO() + '" max="' + maxDate + '" value="' + esc(bk.date) + '"' + (ev ? ' readonly' : '') + '>', { req: true, hint: ev ? 'Set by the event you chose.' : '' }) +
       field('time', 'Expected arrival time', '<input type="time" id="time" value="' + esc(bk.time) + '">', { req: true }) + '</div>' +
-      field('guests', 'Number of guests', '<select id="guests">' + guestOptions(30, bk.guests) + '</select>', { req: true, hint: 'Including yourself. For bigger groups, use <a href="#/celebrations">Plan a Celebration</a>.' }) +
+      field('guests', 'Number of guests', '<select id="guests">' + guestOptions(30, bk.guests) + '</select>', { req: true, hint: 'Including yourself. For bigger groups, use <a href="/celebrations">Plan a Celebration</a>.' }) +
       '<div class="nav-btns"><span></span><button class="btn primary" type="submit">Continue →</button></div></form>';
   }
   function evHint(ev) {
@@ -157,7 +212,7 @@
     if (bk.invitedBy) rows.push(['Invited by', bk.invitedBy]); if (bk.seating) rows.push(['Seating', bk.seating]); if (bk.requests) rows.push(['Requests', bk.requests]);
     return '<form class="form" id="s3" novalidate><h3>Review your booking</h3><dl class="summary">' + rows.map((r) => '<div><dt>' + r[0] + '</dt><dd>' + esc(r[1]) + '</dd></div>').join('') + '</dl>' +
       '<div class="notice"><b>This is a reservation request.</b> Your spot is only confirmed once our team accepts it and we tell you so. No payment is needed to submit.</div>' +
-      '<div class="field" id="f_consent"><label class="check"><input type="checkbox" id="consent"' + (bk.consent ? ' checked' : '') + '><span>I agree to Shaunz Royale using my details to manage this booking, as described in the <a href="#/info/privacy" target="_blank">privacy notice</a>. <span class="req">*</span></span></label><div class="err" id="e_consent" role="alert"></div></div>' +
+      '<div class="field" id="f_consent"><label class="check"><input type="checkbox" id="consent"' + (bk.consent ? ' checked' : '') + '><span>I agree to Shaunz Royale using my details to manage this booking, as described in the <a href="/info/privacy" target="_blank">privacy notice</a>. <span class="req">*</span></span></label><div class="err" id="e_consent" role="alert"></div></div>' +
       '<label class="check"><input type="checkbox" id="marketing"' + (bk.marketing ? ' checked' : '') + '><span>Send me news about upcoming events and offers (optional).</span></label>' +
       '<div class="nav-btns"><button class="btn" type="button" id="back">← Back</button><button class="btn primary" type="submit" id="submitBtn">Submit Request</button></div></form>';
   }
@@ -214,7 +269,7 @@
       '<div class="refbox" aria-label="Booking reference">' + r.ref + '</div><p>' + statusBadge(r.status) + '</p>' +
       '<p>📧 We’re emailing your booking details to <b>' + esc(email) + '</b>. If it doesn’t arrive in a few minutes, check your spam folder.</p>' +
       '<p class="muted">Save this reference. You can check your status anytime with your reference and phone number.</p>' +
-      '<div class="cta-row" style="justify-content:center"><a class="btn primary" href="#/track">Check booking status</a>' + (S().whatsapp ? '<a class="btn" target="_blank" rel="noopener" href="' + waLink(msg) + '">Send on WhatsApp</a>' : '') + '<a class="btn" href="#/">Back home</a></div></div>';
+      '<div class="cta-row" style="justify-content:center"><a class="btn primary" href="/track">Check booking status</a>' + (S().whatsapp ? '<a class="btn" target="_blank" rel="noopener" href="' + waLink(msg) + '">Send on WhatsApp</a>' : '') + '<a class="btn" href="/">Back home</a></div></div>';
   }
 
   /* ---------- celebrations ---------- */
@@ -232,7 +287,7 @@
       field('c_decor', 'Decoration or special setup', '<textarea id="c_decor" maxlength="500" placeholder="Optional"></textarea>') +
       field('c_notes', 'Additional notes', '<textarea id="c_notes" maxlength="500" placeholder="Optional"></textarea>') +
       '<div class="notice">Submitting this form is an enquiry, not a booking. We’ll review availability, send you an offer, and confirm once the arrangements are agreed.</div>' +
-      '<div class="field" id="f_c_consent"><label class="check"><input type="checkbox" id="c_consent"><span>I agree to Shaunz Royale using my details to respond to this enquiry (<a href="#/info/privacy" target="_blank">privacy notice</a>). <span class="req">*</span></span></label><div class="err" id="e_c_consent" role="alert"></div></div>' +
+      '<div class="field" id="f_c_consent"><label class="check"><input type="checkbox" id="c_consent"><span>I agree to Shaunz Royale using my details to respond to this enquiry (<a href="/info/privacy" target="_blank">privacy notice</a>). <span class="req">*</span></span></label><div class="err" id="e_c_consent" role="alert"></div></div>' +
       '<label class="check"><input type="checkbox" id="c_marketing"><span>Send me news about upcoming events and offers (optional).</span></label>' +
       '<div class="nav-btns"><span></span><button class="btn primary" type="submit" id="c_submit">Send Enquiry</button></div></form></div></div></section>';
   };
@@ -259,7 +314,7 @@
       celebToken = null;
       const q = res.enquiry, msg = 'Hello Shaunz Royale, my celebration enquiry reference is ' + q.ref + '.';
       $('#celeb').innerHTML = '<div style="text-align:center"><div style="font-size:2.4rem" aria-hidden="true">🥂</div><h2>Enquiry received</h2><p class="muted">Thank you, ' + esc(q.name.split(' ')[0]) + '. Our team will review availability for ' + fmtDate(q.date) + ' and come back to you with an offer. This is not a confirmed booking yet.</p><p>📧 We’re emailing the details to <b>' + esc(v('email')) + '</b>. Check your spam folder if it doesn’t arrive.</p>' +
-        '<div class="refbox">' + q.ref + '</div><p class="muted">Use this reference and your phone number to follow your enquiry’s progress.</p><div class="cta-row" style="justify-content:center"><a class="btn primary" href="#/track">Track my enquiry</a>' + (S().whatsapp ? '<a class="btn" target="_blank" rel="noopener" href="' + waLink(msg) + '">Send on WhatsApp</a>' : '') + '</div></div>';
+        '<div class="refbox">' + q.ref + '</div><p class="muted">Use this reference and your phone number to follow your enquiry’s progress.</p><div class="cta-row" style="justify-content:center"><a class="btn primary" href="/track">Track my enquiry</a>' + (S().whatsapp ? '<a class="btn" target="_blank" rel="noopener" href="' + waLink(msg) + '">Send on WhatsApp</a>' : '') + '</div></div>';
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
   };
@@ -299,8 +354,8 @@
       ['Is my spot guaranteed once I submit?', 'No. A submitted form is a request. Your spot is confirmed only when our team accepts it and you’re told so, using the reference you received.'],
       ['Can I choose my exact table?', 'You can tell us your seating preference. Our team assigns the actual table on the night to keep things running smoothly.'],
       ['What if an event is fully booked?', 'You can join the waitlist. Waitlisted guests are not counted as confirmed, and we’ll reach out if a spot opens.'],
-      ['How do I plan a birthday or private event?', 'Use <a href="#/celebrations">Plan a Celebration</a>. We review availability, send an offer, and confirm once arrangements are agreed.'],
-      ['How do I check my status?', 'Go to <a href="#/track">Check my booking</a> and enter your reference and phone number.']]],
+      ['How do I plan a birthday or private event?', 'Use <a href="/celebrations">Plan a Celebration</a>. We review availability, send an offer, and confirm once arrangements are agreed.'],
+      ['How do I check my status?', 'Go to <a href="/track">Check my booking</a> and enter your reference and phone number.']]],
     policies: ['Booking policies', [
       ['Reservations', 'Reservations are requests until confirmed by Shaunz Royale. Confirmation is communicated to you directly.'],
       ['Capacity', 'Events and seating areas have limited capacity. When capacity is reached, further requests may be waitlisted.'],
@@ -321,11 +376,38 @@
   };
 
   /* ---------- router ---------- */
+  /* ---------- router (real paths so each page can be found in search) ---------- */
+  const SITE = 'https://www.shaunzroyalelifestyle.com';
+  const META = {
+    home: ['Shaunz Royale — Nightlife, Lounge & Celebrations in Akure', 'Shaunz Royale is a lounge and nightclub at Shebi Junction, Akure. See this week’s nights, reserve a table, book a visit or plan a birthday celebration.'],
+    events: ['Events & Club Nights in Akure · Shaunz Royale', 'This week and upcoming nights at Shaunz Royale, Akure: club nights, ladies’ night and themed parties. Reserve your spot online.'],
+    book: ['Book a Visit or Reserve a Table in Akure · Shaunz Royale', 'Book a visit or reserve a table at Shaunz Royale in Akure in three quick steps. No account needed.'],
+    menu: ['Menu, Tables & VIP Packages · Shaunz Royale Akure', 'Food, drinks and table or VIP options at Shaunz Royale, Akure.'],
+    celebrations: ['Birthday & Private Event Bookings in Akure · Shaunz Royale', 'Plan a birthday, anniversary or private party at Shaunz Royale in Akure. Share your plans and our team will send an offer.'],
+    about: ['About Shaunz Royale · Lounge & Nightclub in Akure', 'Shaunz Royale is a lounge and nightclub around Shebi Junction on the Ilesha–Owo Express Road in Akure, Ondo State.'],
+    track: ['Check Your Booking · Shaunz Royale', 'Check the status of your Shaunz Royale booking or celebration enquiry.'],
+    info: ['Help & Policies · Shaunz Royale', 'FAQs, booking policies and privacy notice for Shaunz Royale, Akure.']
+  };
+  function setMeta(key, path) {
+    const m = META[key] || META.home;
+    document.title = m[0];
+    const set = (sel, attr, v) => { const el = document.querySelector(sel); if (el) el.setAttribute(attr, v); };
+    set('meta[name=description]', 'content', m[1]); set('meta[property="og:title"]', 'content', m[0]); set('meta[property="og:description"]', 'content', m[1]);
+    set('#canonical', 'href', SITE + path); set('meta[property="og:url"]', 'content', SITE + path);
+    let robots = document.querySelector('meta[name=robots]'); if (!robots) { robots = document.createElement('meta'); robots.name = 'robots'; document.head.appendChild(robots); }
+    robots.content = key === 'track' ? 'noindex' : 'index,follow';
+  }
+  function parsePath() {
+    // old links used #/route — keep them working
+    if (/^#\/./.test(location.hash)) history.replaceState(null, '', '/' + location.hash.slice(2).replace(/^\/+/, ''));
+    const parts = location.pathname.replace(/^\/+|\/+$/g, '').split('/');
+    return [parts[0] || 'home', parts.slice(1).join('/')];
+  }
   let routeId = 0, loadedAt = 0;
   async function route() {
     const my = ++routeId;
-    const h = location.hash.replace(/^#\/?/, ''), [name, arg] = h.split('/');
-    const key = views[name || 'home'] ? (name || 'home') : 'home';
+    const [name, arg] = parsePath();
+    const key = views[name] ? name : 'home';
     if (!loadedAt || Date.now() - loadedAt > 30000) {
       if (!loadedAt) app.innerHTML = '<div class="wrap" style="padding:120px 16px;text-align:center"><p class="muted">Loading…</p></div>';
       try { await SR.loadPublic(); loadedAt = Date.now(); renderFooter(); }
@@ -334,17 +416,27 @@
     if (my !== routeId) return;
     app.innerHTML = views[key](arg);
     if (views[key].after) views[key].after(arg);
-    $$('.nav a[data-r]').forEach((a) => a.toggleAttribute('aria-current', a.dataset.r === key || (key === 'home' && a.dataset.r === 'home')) );
-    $$('.nav a[data-r]').forEach((a) => { if (a.hasAttribute('aria-current')) a.setAttribute('aria-current', 'page'); });
+    $$('.nav a[data-r]').forEach((a) => { if (a.dataset.r === key) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     $('#nav').classList.remove('open'); $('#menuBtn').setAttribute('aria-expanded', 'false');
     if (key !== 'book') window.scrollTo(0, 0);
-    document.title = (key === 'home' ? 'Shaunz Royale — Nightlife, Lounge & Celebrations in Akure' : ({ events: 'Events', book: 'Book Now', celebrations: 'Celebrations', track: 'Check Booking', info: 'Info' }[key] || '') + ' · Shaunz Royale');
+    setMeta(key, key === 'home' ? '/' : '/' + [name, arg].filter(Boolean).join('/'));
   }
+  function go(url) { history.pushState(null, '', url); route(); }
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href]'); if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || a.target === '_blank') return;
+    const h = a.getAttribute('href');
+    if (h === '#app') { e.preventDefault(); app.focus(); return; }
+    if (!h.startsWith('/') || h.startsWith('//') || /^\/(admin|assets|css|js)\b/.test(h) || /\.\w+$/.test(h)) return;
+    e.preventDefault(); go(h);
+  });
+  window.addEventListener('popstate', route);
   $('#menuBtn').addEventListener('click', () => { const n = $('#nav'); const o = n.classList.toggle('open'); $('#menuBtn').setAttribute('aria-expanded', o); });
-  window.addEventListener('hashchange', route);
 
   $('#yr').textContent = new Date().getFullYear();
-  function renderFooter() { const s = S();
-  $('#ftContact').innerHTML = '<li>' + esc(s.address) + '</li>' + (s.phone ? '<li><a href="tel:' + esc(s.phone.replace(/\s/g, '')) + '">' + esc(s.phone) + '</a></li>' : '') + (s.email ? '<li><a href="mailto:' + esc(s.email) + '">' + esc(s.email) + '</a></li>' : '') + (s.instagram ? '<li><a target="_blank" rel="noopener" href="' + esc(s.instagram) + '">Instagram</a></li>' : '') + '<li><a target="_blank" rel="noopener" href="' + mapsUrl + '">Directions</a></li>'; }
+  function renderFooter() {
+    const s = S();
+    $('#ftContact').innerHTML = '<li>' + esc(s.address) + '</li>' + (s.phone ? '<li><a href="tel:' + esc(s.phone.replace(/\s/g, '')) + '">' + esc(s.phone) + '</a></li>' : '') + (s.whatsapp ? '<li><a target="_blank" rel="noopener" href="' + waLink('Hello Shaunz Royale, ') + '">WhatsApp us</a></li>' : '') + (s.email ? '<li><a href="mailto:' + esc(s.email) + '">' + esc(s.email) + '</a></li>' : '') + (s.instagram ? '<li><a target="_blank" rel="noopener" href="' + esc(s.instagram) + '">Instagram</a></li>' : '') + (s.reviewsUrl ? '<li><a target="_blank" rel="noopener" href="' + esc(s.reviewsUrl) + '">Guest reviews</a></li>' : '') + '<li><a target="_blank" rel="noopener" href="' + mapsUrl + '">Directions</a></li>';
+    $('#navMenu').hidden = !hasMenu();
+  }
   route();
 })();

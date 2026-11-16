@@ -3,26 +3,56 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="/">
 <title>Shaunz Royale — Nightlife, Lounge & Celebrations in Akure</title>
-<meta name="description" content="Book a visit, reserve a table or plan your celebration at Shaunz Royale, the lounge and nightclub at Shebi Junction, Akure.">
+<meta name="description" content="Shaunz Royale is a lounge and nightclub at Shebi Junction, Akure. See this week's nights, reserve a table, book a visit or plan a birthday celebration.">
 <meta name="theme-color" content="#070707">
+<link rel="canonical" href="https://www.shaunzroyalelifestyle.com/" id="canonical">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Shaunz Royale">
+<meta property="og:title" content="Shaunz Royale — Nightlife, Lounge & Celebrations in Akure">
+<meta property="og:description" content="Lounge and nightclub in Akure. This week's nights, table reservations and birthday celebrations.">
+<meta property="og:image" content="https://www.shaunzroyalelifestyle.com/assets/image10.jpg">
+<meta property="og:url" content="https://www.shaunzroyalelifestyle.com/">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="assets/logo.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/styles.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "NightClub",
+  "name": "Shaunz Royale",
+  "url": "https://www.shaunzroyalelifestyle.com/",
+  "image": "https://www.shaunzroyalelifestyle.com/assets/image10.jpg",
+  "logo": "https://www.shaunzroyalelifestyle.com/assets/logo.png",
+  "description": "Lounge and nightclub in Akure, Ondo State. Club nights, table reservations and birthday celebrations.",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Around Shebi Junction, Ilesha–Owo Express Road",
+    "addressLocality": "Akure",
+    "addressRegion": "Ondo State",
+    "addressCountry": "NG"
+  },
+  "areaServed": "Akure",
+  "acceptsReservations": true
+}
+</script>
 </head>
 <body>
 <a class="skip" href="#app">Skip to content</a>
 <header class="site-header">
   <div class="wrap">
-    <a class="brand" href="#/" aria-label="Shaunz Royale home"><img src="assets/logo.png" alt="" width="44" height="44"><span>SHAUNZ ROYALE</span></a>
+    <a class="brand" href="/" aria-label="Shaunz Royale home"><img src="assets/logo.png" alt="" width="44" height="44"><span>SHAUNZ ROYALE</span></a>
     <button class="menu-btn" id="menuBtn" aria-label="Open menu" aria-expanded="false" aria-controls="nav">☰</button>
     <nav class="nav" id="nav" aria-label="Main">
-      <a href="#/" data-r="home">Home</a>
-      <a href="#/events" data-r="events">Events</a>
-      <a href="#/celebrations" data-r="celebrations">Celebrations</a>
-      <a href="#/book" class="btn primary small" data-r="book">Book Now</a>
+      <a href="/" data-r="home">Home</a>
+      <a href="/events" data-r="events">Events</a>
+      <a href="/menu" data-r="menu" id="navMenu" hidden>Menu &amp; Tables</a>
+      <a href="/celebrations" data-r="celebrations">Celebrations</a>
+      <a href="/book" class="btn primary small" data-r="book">Book Now</a>
     </nav>
   </div>
 </header>
@@ -32,16 +62,16 @@
 <footer>
   <div class="wrap">
     <div class="cols">
-      <div><h4>SHAUNZ ROYALE</h4><p class="muted">Lounge &amp; nightclub. Food, drinks, music and celebrations in Akure.</p></div>
+      <div><h4>SHAUNZ ROYALE</h4><p class="muted">Lounge &amp; nightclub. Food, drinks, music and celebrations in Akure.</p><p><a href="/about">About the venue</a></p></div>
       <div><h4>Visit</h4><ul id="ftContact"></ul></div>
       <div><h4>Help</h4><ul>
-        <li><a href="#/track">Check my booking</a></li>
-        <li><a href="#/info/faq">FAQs</a></li>
-        <li><a href="#/info/policies">Booking policies</a></li>
-        <li><a href="#/info/privacy">Privacy notice</a></li>
+        <li><a href="/track">Check my booking</a></li>
+        <li><a href="/info/faq">FAQs</a></li>
+        <li><a href="/info/policies">Booking policies</a></li>
+        <li><a href="/info/privacy">Privacy notice</a></li>
       </ul></div>
     </div>
-    <div class="legal"><span>© <span id="yr"></span> Shaunz Royale. All rights reserved.</span><a href="admin.html">Staff login</a></div>
+    <div class="legal"><span>© <span id="yr"></span> Shaunz Royale. All rights reserved.</span><a href="/admin">Staff login</a></div>
   </div>
 </footer>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>

@@ -1,1 +1,7 @@
-{ "cleanUrls": true }
+{
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/(events|menu|celebrations|about|track|book|info)", "destination": "/index.html" },
+    { "source": "/(book|info)/:rest*", "destination": "/index.html" }
+  ]
+}

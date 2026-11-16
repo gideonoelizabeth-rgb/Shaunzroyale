@@ -29,3 +29,9 @@ then http://localhost:8080 and /admin.html.
 - Two staff editing the same booking at once: last save wins.
 - Online payments (Paystack/Flutterwave) are not built yet.
 - Sample events (Wed Ladies' Night, Fri Club Night, Sat Ballers Linkup, Sun Red Room), capacity 120 and six tables are placeholders: edit them in the dashboard.
+
+## Website content you control (Dashboard → Settings → Website content)
+- **Weekly nights renew automatically.** Events marked "Keep adding this night every week" are re-created by the database for the next ~5 weeks whenever the site loads, so the homepage never runs out. Untick the box on an event to stop its series.
+- **Menu and Tables & VIP packages**: one item per line. Menu: `Category | Item | Price | Note`. Packages: `Name | Price or minimum spend | What's included`. The "Menu & Tables" page and nav link appear as soon as you add something.
+- **Opening hours, reply time, deposit note, Google reviews link, About paragraph, Instagram link**: shown on the site only when filled in.
+- Pages use real URLs (`/events`, `/book`, `/celebrations`, `/about`, `/menu`) with their own titles, descriptions, `sitemap.xml`, `robots.txt` and venue structured data. Old `#/…` links still work.

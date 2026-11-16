@@ -1,8 +1,9 @@
 # Tiny local web server for previewing the Shaunz Royale site (no installs needed).
 # Usage:  powershell -ExecutionPolicy Bypass -File serve.ps1   then open http://localhost:8080
+# Mirrors the Vercel rewrites: /admin -> admin.html, other extension-less paths -> index.html
 param([int]$Port = 8080)
 $root = $PSScriptRoot
-$types = @{ '.html'='text/html; charset=utf-8'; '.css'='text/css'; '.js'='application/javascript'; '.json'='application/json'; '.webmanifest'='application/manifest+json'; '.png'='image/png'; '.jpg'='image/jpeg'; '.svg'='image/svg+xml' }
+$types = @{ '.html'='text/html; charset=utf-8'; '.css'='text/css'; '.js'='application/javascript'; '.json'='application/json'; '.webmanifest'='application/manifest+json'; '.png'='image/png'; '.jpg'='image/jpeg'; '.svg'='image/svg+xml'; '.xml'='application/xml'; '.txt'='text/plain' }
 $l = New-Object Net.HttpListener
 $l.Prefixes.Add("http://localhost:$Port/")
 $l.Start()
@@ -12,7 +13,9 @@ while ($l.IsListening) {
   try {
     $p = [Uri]::UnescapeDataString($c.Request.Url.AbsolutePath.TrimStart('/'))
     if ($p -eq '') { $p = 'index.html' }
+    if ($p -eq 'admin') { $p = 'admin.html' }
     $f = [IO.Path]::GetFullPath((Join-Path $root $p))
+    if (-not (Test-Path $f -PathType Leaf) -and -not [IO.Path]::HasExtension($p)) { $f = Join-Path $root 'index.html' }
     if ($f.StartsWith($root) -and (Test-Path $f -PathType Leaf)) {
       $b = [IO.File]::ReadAllBytes($f)
       $c.Response.ContentType = $types[[IO.Path]::GetExtension($f).ToLower()]
